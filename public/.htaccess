@@ -1,5 +1,6 @@
 # Disable directory browsing
-Options -Indexes
+# Directory browsing staat in Plesk standaard al uit.
+# Options in .htaccess is in Plesk vaak niet toegestaan (AllowOverride), daarom weggelaten.
 
 # ----------------------------------------------------------------------
 # Rewrite engine
@@ -8,8 +9,6 @@ Options -Indexes
 # Turning on the rewrite engine is necessary for the following rules and features.
 # FollowSymLinks must be enabled for this to work.
 <IfModule mod_rewrite.c>
-	# Plesk staat FollowSymlinks niet toe in .htaccess; SymLinksIfOwnerMatch wel
-	Options +SymLinksIfOwnerMatch
 	RewriteEngine On
 
 	# If you installed CodeIgniter in a subfolder, you will need to
