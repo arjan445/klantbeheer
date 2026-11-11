@@ -295,7 +295,10 @@ class Catalog
         }
         self::reset();
 
-        return ['new' => $new, 'updated' => $updated, 'inactive' => $inactive, 'groups' => count($groups)];
+        // Controle: hoeveel staan er nu echt actief in de database?
+        $stored = model(ProductModel::class)->where('supplier_id', $supplier['id'])->where('active', 1)->countAllResults();
+
+        return ['new' => $new, 'updated' => $updated, 'inactive' => $inactive, 'groups' => count($groups), 'stored' => $stored];
     }
 
     /** Merk uit de artikelnaam halen (eerste woord als dat een bekend merk is) */

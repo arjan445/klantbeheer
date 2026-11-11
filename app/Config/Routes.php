@@ -136,4 +136,5 @@ $routes->group('beheer', static function ($routes) {
     $routes->get('moneybird', [Settings::class, 'moneybird'], ['filter' => 'can:settings.manage']);
     $routes->post('moneybird/contacten', [Settings::class, 'importContacts'], ['filter' => 'can:settings.manage']);
     $routes->get('kluislog', [Settings::class, 'vaultLog'], ['filter' => 'can:settings.manage']);
+    $routes->get('diagnose', [Settings::class, 'diagnose'], ['filter' => 'can:settings.manage']);
 });

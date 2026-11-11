@@ -57,6 +57,7 @@
                         <?php if (user_can('settings.manage')) : ?>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/moneybird') ?>">Moneybird</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/kluislog') ?>">Kluislogboek</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('beheer/diagnose') ?>">Diagnose</a></li>
                         <?php endif ?>
                     </ul>
                 </li>

@@ -101,4 +101,83 @@ class Settings extends BaseController
 
         return $this->page('settings/vaultlog', ['log' => $log], 'Kluislogboek');
     }
+
+    /**
+     * Diagnose: database- en catalogusstatus, om problemen op de server te vinden.
+     */
+    public function diagnose()
+    {
+        $db   = db_connect();
+        $info = [
+            'PHP'         => PHP_VERSION,
+            'Omgeving'    => ENVIRONMENT,
+            'Database'    => $db->getPlatform() . ' ' . $db->getVersion() . ' · ' . $db->getDatabase(),
+            'DBPrefix'    => $db->getPrefix() === '' ? '(geen)' : $db->getPrefix(),
+            'DBDebug'     => var_export($db->DBDebug, true),
+            'Migraties'   => implode(', ', array_column($db->table('migrations')->select('version')->orderBy('id', 'DESC')->limit(3)->get()->getResultArray(), 'version')),
+        ];
+
+        $tables = [];
+        foreach (['suppliers', 'supplier_groups', 'products', 'quotes', 'quote_lines', 'customers', 'subscriptions'] as $t) {
+            $tables[$t] = $db->tableExists($t) ? $db->table($t)->countAllResults() : 'ontbreekt';
+        }
+
+        $engines = [];
+        $mysql   = stripos($db->getPlatform(), 'mysql') !== false;
+        if ($mysql) {
+            foreach ($db->query('SHOW TABLE STATUS WHERE Name IN (\'products\', \'suppliers\')')->getResultArray() as $r) {
+                $engines[$r['Name']] = $r['Engine'] . ' · ' . $r['Collation'] . ' · auto_increment ' . $r['Auto_increment'];
+            }
+            try {
+                $vars = $db->query('SELECT @@autocommit AS autocommit, @@sql_mode AS sql_mode, @@auto_increment_increment AS inc')->getRowArray();
+                $info['MySQL'] = 'autocommit=' . $vars['autocommit'] . ' · increment=' . $vars['inc'] . ' · ' . $vars['sql_mode'];
+            } catch (\Throwable $e) {
+                $info['MySQL'] = 'onbekend: ' . $e->getMessage();
+            }
+        }
+
+        // Proef: één product opslaan in een transactie en kijken of het blijft staan
+        $test = 'niet uitgevoerd';
+        try {
+            $supplier = $db->table('suppliers')->where('code', 'osec')->get()->getRowArray();
+            $db->transStart();
+            $db->table('products')->insert(['supplier_id' => $supplier['id'], 'supplier_sku' => 'DIAG-' . time(), 'name' => 'Diagnose-test', 'source' => 'diag', 'active' => 0]);
+            $id = $db->insertID();
+            $db->transComplete();
+            $found = $db->table('products')->where('id', $id)->countAllResults();
+            $db->table('products')->where('source', 'diag')->delete();
+            $test = $found ? 'OK (opgeslagen en weer verwijderd, id ' . $id . ')' : 'MISLUKT: na transactie niet terug te vinden';
+        } catch (\Throwable $e) {
+            $test = 'FOUT: ' . $e->getMessage();
+        }
+
+        return $this->page('settings/diagnose', [
+            'info'      => $info,
+            'tables'    => $tables,
+            'engines'   => $engines,
+            'suppliers' => $db->table('suppliers')->get()->getResultArray(),
+            'perSupplier' => $db->table('products')->select('supplier_id, source, active, COUNT(*) AS n')->groupBy('supplier_id, source, active')->get()->getResultArray(),
+            'test'      => $test,
+            'log'       => $this->lastLogLines(),
+        ], 'Diagnose');
+    }
+
+    private function lastLogLines(): array
+    {
+        $files = glob(WRITEPATH . 'logs/log-*.log') ?: [];
+        rsort($files);
+        $lines = [];
+        foreach (array_slice($files, 0, 2) as $f) {
+            foreach (array_reverse(file($f, FILE_IGNORE_NEW_LINES) ?: []) as $l) {
+                if (preg_match('/^(ERROR|CRITICAL|ALERT|EMERGENCY)/', $l)) {
+                    $lines[] = mb_substr($l, 0, 400);
+                }
+                if (count($lines) >= 15) {
+                    break 2;
+                }
+            }
+        }
+
+        return $lines;
+    }
 }
