@@ -48,14 +48,12 @@ $routes->group('diensten', ['filter' => 'can:billing.view'], static function ($r
     $routes->post('(:num)/verwijderen', [Services::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
 });
 
-// Kostprijzen (kostenpools uit Moneybird-inkoop)
+// Kostprijzen (kostenposten per leverancier, verdeeld over diensten)
 $routes->group('kostprijzen', ['filter' => 'can:billing.view'], static function ($routes) {
     $routes->get('/', [CostPools::class, 'index']);
-    $routes->post('ophalen', [CostPools::class, 'sync'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], 'nieuw', [CostPools::class, 'create'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [CostPools::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [CostPools::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
-    $routes->match(['GET', 'POST'], '(:num)/regels', [CostPools::class, 'lines/$1'], ['filter' => 'can:billing.manage']);
 });
 
 // Abonnementen

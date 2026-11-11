@@ -67,44 +67,6 @@ class Moneybird
         return $this->request('GET', 'tax_rates', ['filter' => 'tax_rate_type:sales_invoice']);
     }
 
-    /** Alle grootboekrekeningen ("categorieën" in Moneybird) */
-    public function ledgerAccounts(): array
-    {
-        return $this->request('GET', 'ledger_accounts');
-    }
-
-    /**
-     * Inkoopfacturen en bonnetjes in een periode (alle pagina's).
-     *
-     * @param string $from Y-m-d
-     * @param string $to   Y-m-d
-     *
-     * @return list<array>
-     */
-    public function purchaseDocuments(string $from, string $to): array
-    {
-        $period = str_replace('-', '', $from) . '..' . str_replace('-', '', $to);
-        $all    = [];
-
-        foreach (['documents/purchase_invoices', 'documents/receipts'] as $path) {
-            for ($page = 1; $page <= 200; $page++) {
-                $batch = $this->request('GET', $path, ['filter' => 'period:' . $period, 'page' => $page, 'per_page' => 100]);
-                if ($batch === []) {
-                    break;
-                }
-                foreach ($batch as $doc) {
-                    $doc['_kind'] = $path === 'documents/receipts' ? 'bonnetje' : 'inkoopfactuur';
-                    $all[] = $doc;
-                }
-                if (count($batch) < 100) {
-                    break;
-                }
-            }
-        }
-
-        return $all;
-    }
-
     public function products(): array
     {
         return $this->request('GET', 'products', ['per_page' => 100]);

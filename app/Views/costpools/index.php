@@ -1,17 +1,10 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h3 class="mb-0">Kostprijzen</h3>
-        <div class="text-muted small">Inkoop uit Moneybird (per leverancier, zoekwoord of categorie) verdeeld over je abonnementen.</div>
+        <div class="text-muted small">Je vaste kosten per leverancier, verdeeld over je abonnementen.</div>
     </div>
     <?php if (user_can('billing.manage')) : ?>
-    <div class="d-flex gap-2">
-        <?php if (user_can("billing.manage")) : ?>
-        <form method="post" action="<?= site_url('kostprijzen/ophalen') ?>"><?= csrf_field() ?>
-            <button class="btn btn-outline-secondary" <?= $mb->configured() ? '' : 'disabled' ?>><i class="bi bi-arrow-repeat"></i> Ophalen uit Moneybird</button>
-        </form>
-        <?php endif ?>
         <a href="<?= site_url('kostprijzen/nieuw') ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nieuwe kostenpool</a>
-    </div>
     <?php endif ?>
 </div>
 
@@ -19,54 +12,45 @@
 <div class="card"><div class="card-body">
     <h5>Hoe werkt het?</h5>
     <ol class="mb-0">
-        <li>Maak een kostenpool, bijvoorbeeld <strong>Hostingplatform</strong>.</li>
-        <li>Klik op <em>Ophalen uit Moneybird</em>: alle inkoopfacturen en bonnetjes van het afgelopen jaar worden opgehaald.</li>
-        <li>Kies welke inkoop erbij hoort: per <strong>leverancier</strong> (bijv. Hetzner, Plesk), via <strong>zoekwoorden</strong> (bijv. "vps", "imunify") en/of per <strong>categorie</strong>. Per regel kun je nog aan- of uitvinken.</li>
-        <li>Koppel de diensten die van dat platform gebruikmaken, bijvoorbeeld <em>Webhosting Basis</em> en <em>Webhosting Pro</em> (met gewicht 2).</li>
-        <li>De app telt de inkoopfacturen en bonnetjes van de laatste 12 maanden op en deelt dat door het aantal actieve abonnementen. Dat bedrag wordt de inkoopprijs van de dienst, en de marges kloppen vanzelf.</li>
+        <li>Maak een kostenpool aan, bijvoorbeeld <strong>Hostingplatform</strong>.</li>
+        <li>Vul de kosten in per leverancier, bijvoorbeeld <em>Hetzner – VPS – € 40 per maand</em>, <em>Plesk – licentie – € 15 per maand</em> en <em>CloudLinux – Imunify – € 100 per jaar</em>.</li>
+        <li>Vink de diensten aan die op dit platform draaien, bijvoorbeeld <em>Webhosting Basis</em> en <em>Webhosting Pro</em> (met gewicht 2).</li>
+        <li>De jaarkosten worden verdeeld over het aantal actieve abonnementen. De uitkomst is de kostprijs per stuk, en die wordt automatisch de inkoopprijs van de dienst.</li>
     </ol>
 </div></div>
 <?php endif ?>
 
 <?php foreach ($pools as $p) : ?>
-    <?php $c = $calc[$p['id']] ?? null; $bd = json_decode((string) $p['breakdown'], true) ?: []; ?>
+    <?php $c = $calc[$p['id']] ?? ['yearly' => 0, 'units' => 0, 'services' => []]; ?>
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="bi bi-diagram-3"></i> <?= esc($p['name']) ?></span>
             <span>
-                <span class="fs-5"><?= euro($c['yearly'] ?? 0) ?></span> <span class="small text-muted fw-normal">kosten per jaar</span>
+                <span class="fs-5"><?= euro($c['yearly']) ?></span> <span class="small text-muted fw-normal">per jaar · <?= euro($c['yearly'] / 12) ?> per maand</span>
                 <?php if (user_can('billing.manage')) : ?><a href="<?= site_url('kostprijzen/' . $p['id'] . '/bewerken') ?>" class="btn btn-sm btn-outline-secondary ms-2"><i class="bi bi-pencil"></i></a><?php endif ?>
             </span>
         </div>
         <div class="card-body">
             <div class="row g-4">
                 <div class="col-lg-5">
-                    <h6 class="text-muted">Opbouw</h6>
-                    <table class="table table-sm mb-2">
-                        <?php foreach ($bd['suppliers'] ?? [] as $name => $amount) : ?>
-                            <tr><td><?= esc($name) ?></td><td class="text-end"><?= euro($amount) ?></td></tr>
+                    <h6 class="text-muted">Kosten</h6>
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Leverancier</th><th class="text-end">Bedrag</th><th class="text-end">Per jaar</th></tr></thead>
+                        <?php foreach ($items[$p['id']] as $i) : ?>
+                            <tr>
+                                <td><?= esc($i['supplier']) ?><?php if ($i['description']) : ?> <span class="small text-muted">· <?= esc($i['description']) ?></span><?php endif ?></td>
+                                <td class="text-end text-nowrap"><?= euro($i['amount']) ?> <span class="small text-muted">/ <?= $i['period'] === 'year' ? 'jaar' : 'maand' ?></span></td>
+                                <td class="text-end"><?= euro(\App\Libraries\CostPools::itemYearly($i)) ?></td>
+                            </tr>
                         <?php endforeach ?>
-                        <tr class="fw-semibold"><td>Totaal Moneybird <span class="small text-muted fw-normal"><?= datum($p['synced_from']) ?> t/m <?= datum($p['synced_to']) ?></span></td><td class="text-end"><?= euro($p['synced_amount'] ?? 0) ?></td></tr>
-                        <?php if ((int) $p['lookback_months'] !== 12) : ?>
-                            <tr><td class="small text-muted">Omgerekend naar 12 maanden (×12/<?= (int) $p['lookback_months'] ?>)</td><td class="text-end small"><?= euro((float) $p['synced_amount'] * 12 / max(1, (int) $p['lookback_months'])) ?></td></tr>
-                        <?php endif ?>
-                        <?php if ((float) $p['allocation_pct'] < 100) : ?>
-                            <tr><td class="small text-muted">Toegerekend aan deze diensten: <?= aantal($p['allocation_pct']) ?>%</td><td></td></tr>
-                        <?php endif ?>
-                        <?php if ((float) $p['extra_yearly'] > 0) : ?>
-                            <tr><td>Extra kosten (handmatig)</td><td class="text-end"><?= euro($p['extra_yearly']) ?></td></tr>
-                        <?php endif ?>
+                        <?php if ($items[$p['id']] === []) : ?><tr><td colspan="3" class="text-muted small">Nog geen kosten ingevuld.</td></tr><?php endif ?>
+                        <tr class="fw-semibold"><td>Totaal</td><td></td><td class="text-end"><?= euro($c['yearly']) ?></td></tr>
                     </table>
-                    <?php if (user_can('billing.manage')) : ?>
-                        <a href="<?= site_url('kostprijzen/' . $p['id'] . '/regels') ?>" class="btn btn-sm btn-outline-primary mb-2"><i class="bi bi-list-check"></i> Inkoopregels bekijken / aanpassen</a>
-                    <?php endif ?>
-                    <div class="small text-muted">
-                        <?php if ($p['synced_at']) : ?>Laatst opgehaald: <?= date('d-m-Y H:i', strtotime($p['synced_at'])) ?><?php else : ?>Nog niet opgehaald uit Moneybird.<?php endif ?>
-                    </div>
+                    <?php if ($p['notes']) : ?><div class="small text-muted mt-2"><?= nl2br(esc($p['notes'])) ?></div><?php endif ?>
                 </div>
                 <div class="col-lg-7">
                     <h6 class="text-muted">Kostprijs per dienst</h6>
-                    <?php if (($c['services'] ?? []) === []) : ?>
+                    <?php if ($c['services'] === []) : ?>
                         <p class="text-muted small">Nog geen diensten gekoppeld.</p>
                     <?php else : ?>
                     <table class="table table-sm">
@@ -94,7 +78,6 @@
                     <?php endif ?>
                 </div>
             </div>
-
         </div>
     </div>
 <?php endforeach ?>
