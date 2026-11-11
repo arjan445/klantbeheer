@@ -64,8 +64,13 @@ $pick = static function (array $list, $selected) {
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#paste"><i class="bi bi-clipboard"></i> Lijst plakken</button>
     </div>
     <div class="collapse mt-2" id="paste">
-        <textarea id="paste-text" rows="5" class="form-control mono" placeholder="Eén domein per regel, bijv.&#10;klant.nl&#10;klant-shop.nl&#10;www.anderdomein.be"></textarea>
-        <button type="button" class="btn btn-sm btn-primary mt-2" id="paste-go">Toevoegen als regels</button>
+        <p class="small text-muted mb-1">Plak een lijst domeinen, of selecteer in het domeinoverzicht van je registrar de hele tabel en plak die hier. De domeinnamen worden eruit gehaald, en een datum op dezelfde regel (bijv. de verloopdatum) kan als factuurdatum worden gebruikt.</p>
+        <textarea id="paste-text" rows="6" class="form-control mono" placeholder="klant.nl&#10;klant-shop.nl&#10;of: anderdomein.be    Actief    01-03-2027    Automatisch verlengen"></textarea>
+        <div class="d-flex gap-3 align-items-center mt-2">
+            <button type="button" class="btn btn-sm btn-primary" id="paste-go">Toevoegen als regels</button>
+            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="paste-dates" checked><label class="form-check-label small" for="paste-dates">Datum op de regel gebruiken als volgende factuurdatum</label></div>
+            <span class="small text-success" id="paste-info"></span>
+        </div>
     </div>
 </div></div>
 
@@ -137,13 +142,29 @@ $pick = static function (array $list, $selected) {
         // Lege klantvelden meenemen
         body.querySelectorAll('.f-customer').forEach(s => { if (!s.value) s.value = $('def-customer').value; });
     });
+    // Plakken: haalt per regel de domeinnaam (en eventueel een datum) uit willekeurige tekst,
+    // bijv. een hele tabel gekopieerd uit het domeinoverzicht van je registrar.
     $('paste-go').addEventListener('click', () => {
-        const names = $('paste-text').value.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
-        // Lege laatste regel hergebruiken
-        const last = body.lastElementChild;
-        if (last && !last.querySelector('.f-domain').value.trim()) last.remove();
-        names.forEach(name => addRow(name));
+        const domainRe = /\b((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24})\b/i;
+        const dateRe = /\b(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})\b|\b(\d{4})-(\d{2})-(\d{2})\b/;
+        const existing = new Set(Array.from(body.querySelectorAll('.f-domain')).map(i => i.value.trim().toLowerCase()).filter(Boolean));
+        const found = [];
+        $('paste-text').value.split(/\r?\n/).forEach(line => {
+            // Meerdere domeinen op één regel (komma/spatie-lijst) ook ondersteunen
+            line = line.replace(/\S+@\S+/g, ' '); // e-mailadressen negeren
+            const domains = (line.match(new RegExp(domainRe.source, 'gi')) || [])
+                .map(d => d.toLowerCase().replace(/^www\./, ''))
+                .filter(d => !/\.(php|html?|png|jpe?g)$/.test(d));
+            const m = line.match(dateRe);
+            let date = '';
+            if (m) date = m[3] ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : `${m[4]}-${m[5]}-${m[6]}`;
+            domains.forEach(d => { if (!existing.has(d)) { existing.add(d); found.push([d, date]); } });
+        });
+        // Lege regels opruimen
+        body.querySelectorAll('tr').forEach(r => { if (!r.querySelector('.f-domain').value.trim()) r.remove(); });
+        found.forEach(([d, date]) => { const r = addRow(d); if (date && $('paste-dates').checked) r.querySelector('.f-next').value = date; });
         $('paste-text').value = '';
+        $('paste-info').textContent = found.length + ' domein(en) toegevoegd.';
         summary();
     });
     document.getElementById('quick').addEventListener('submit', e => {
