@@ -106,6 +106,7 @@ $routes->group('offertes', ['filter' => 'can:billing.view'], static function ($r
     $routes->post('(:num)', [Quotes::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/moneybird', [Quotes::class, 'toMoneybird/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/status', [Quotes::class, 'status/$1'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], '(:num)/apparaten', [Quotes::class, 'devices/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('(:num)/kopie', [Quotes::class, 'copy/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/prijzen', [Quotes::class, 'refreshPrices/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Quotes::class, 'delete/$1'], ['filter' => 'can:billing.manage']);

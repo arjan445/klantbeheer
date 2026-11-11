@@ -5,9 +5,11 @@ namespace App\Controllers;
 use App\Libraries\Catalog;
 use App\Libraries\Moneybird;
 use App\Models\CustomerModel;
+use App\Models\DeviceModel;
 use App\Models\ProductModel;
 use App\Models\QuoteLineModel;
 use App\Models\QuoteModel;
+use App\Models\SiteModel;
 use App\Models\SupplierModel;
 use Throwable;
 
@@ -258,9 +260,161 @@ class Quotes extends BaseController
         $status = (string) $this->request->getPost('status');
         if (isset(self::STATUSES[$status])) {
             model(QuoteModel::class)->update($id, ['status' => $status]);
+            // Net geaccepteerd: meteen door naar apparaten aanmaken als er nog iets te doen is
+            if ($status === 'geaccepteerd' && user_can('vault.manage') && $this->deviceCandidates((int) $id, true) !== []) {
+                return $this->back('Offerte geaccepteerd. Controleer de apparaten en maak ze in één keer aan onder de klant.', 'message', site_url('offertes/' . $id . '/apparaten'));
+            }
         }
 
         return $this->back('Status bijgewerkt.', 'message', site_url('offertes/' . $id));
+    }
+
+    /**
+     * Materiaalregels van een offerte met het geraden apparaatsoort en hoeveel er nog aangemaakt moeten worden.
+     *
+     * @return list<array>
+     */
+    private function deviceCandidates(int $quoteId, bool $onlyGuessed = false): array
+    {
+        $lines = model(QuoteLineModel::class)
+            ->select('quote_lines.*, products.sku, products.brand')
+            ->join('products', 'products.id = quote_lines.product_id', 'left')
+            ->where('quote_id', $quoteId)->where('quote_lines.type', 'material')
+            ->orderBy('sort')->orderBy('quote_lines.id')->findAll();
+        if ($lines === []) {
+            return [];
+        }
+
+        $done = [];
+        foreach (model(DeviceModel::class)->select('quote_line_id, COUNT(*) AS n')->whereIn('quote_line_id', array_column($lines, 'id'))->groupBy('quote_line_id')->findAll() as $r) {
+            $done[$r['quote_line_id']] = (int) $r['n'];
+        }
+
+        $out = [];
+        foreach ($lines as $l) {
+            $guess   = device_type_guess(trim(($l['brand'] ?? '') . ' ' . $l['description'] . ' ' . ($l['sku'] ?? '')));
+            $qty     = max(0, (int) round((float) $l['quantity']));
+            $created = $done[$l['id']] ?? 0;
+            $todo    = max(0, $qty - $created);
+            if ($onlyGuessed && ($guess === null || $todo === 0)) {
+                continue;
+            }
+            $out[] = $l + ['guess' => $guess, 'qty' => $qty, 'created' => $created, 'todo' => $todo];
+        }
+
+        return $out;
+    }
+
+    /** Apparaten aanmaken onder de klant vanuit een (geaccepteerde) offerte */
+    public function devices($id)
+    {
+        $quote    = $this->findOr404(QuoteModel::class, $id);
+        $customer = model(CustomerModel::class)->find($quote['customer_id']);
+        $sites    = model(SiteModel::class)->where('customer_id', $quote['customer_id'])->orderBy('name')->findAll();
+        $lines    = $this->deviceCandidates((int) $id);
+
+        if (! $this->request->is('post')) {
+            return $this->page('quotes/devices', compact('quote', 'customer', 'sites', 'lines'), 'Apparaten uit offerte');
+        }
+
+        $siteId = (int) $this->request->getPost('site_id') ?: null;
+        if ($siteId !== null && ! in_array($siteId, array_map('intval', array_column($sites, 'id')), true)) {
+            $siteId = null;
+        }
+        $installed = $this->request->getPost('installed_at') ?: null;
+        if ($installed !== null && ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $installed)) {
+            $installed = null;
+        }
+        $post  = (array) $this->request->getPost('line');
+        $types = device_types();
+        $model = model(DeviceModel::class);
+        $made  = 0;
+
+        $db = db_connect();
+        $db->transStart();
+        foreach ($lines as $l) {
+            $p = $post[$l['id']] ?? null;
+            if (! is_array($p) || empty($p['on'])) {
+                continue;
+            }
+            $type = (string) ($p['type'] ?? '');
+            $n    = min(200, max(0, (int) ($p['n'] ?? 0)));
+            if (! isset($types[$type]) || $n === 0) {
+                continue;
+            }
+            [$label, , $kind, $defBrand, $models] = $types[$type];
+
+            // Model: bekend modelnaampje uit de lijst (langste treffer), anders typenummer, anders omschrijving
+            $mdl = null;
+            foreach ($models as $m) {
+                if (stripos($l['description'], $m) !== false && ($mdl === null || strlen($m) > strlen($mdl))) {
+                    $mdl = $m;
+                }
+            }
+            if ($mdl === null && ! $l['sku'] && preg_match('/\b[A-Z]{1,6}-[A-Z0-9][A-Z0-9\/-]{3,}\b/i', $l['description'], $tm)) {
+                $mdl = strtoupper($tm[0]); // typenummer uit de omschrijving, bv. DS-2CD2347G2-LU
+            }
+            $mdl ??= $l['sku'] ?: mb_substr(trim(preg_split('/\R/', $l['description'])[0]), 0, 100);
+
+            $num  = $this->highestNumber((int) $quote['customer_id'], $label);
+            $ip   = trim((string) ($p['ip'] ?? ''));
+            $room = trim((string) ($p['room'] ?? '')) ?: null;
+            for ($i = 0; $i < $n; $i++) {
+                $num++;
+                $model->insert([
+                    'customer_id'   => $quote['customer_id'],
+                    'site_id'       => $siteId,
+                    'type'          => $type,
+                    'name'          => ($n === 1 && $num === 1) ? $label : $label . ' ' . $num,
+                    'room'          => $room ? mb_substr($room, 0, 100) : null,
+                    'brand'         => $l['brand'] ?: $defBrand,
+                    'model'         => mb_substr((string) $mdl, 0, 100),
+                    'ip'            => ($kind === 'net' && $ip !== '') ? mb_substr($ip, 0, 100) : null,
+                    'installed_at'  => $installed,
+                    'notes'         => 'Uit offerte #' . $quote['id'],
+                    'quote_line_id' => $l['id'],
+                ]);
+                $made++;
+                if ($ip !== '') {
+                    $ip = (string) self::nextIp($ip);
+                }
+            }
+        }
+        $db->transComplete();
+
+        if ($made === 0) {
+            return $this->back('Niets aangemaakt: vink minstens één regel aan met een soort en aantal.', 'error', site_url('offertes/' . $id . '/apparaten'));
+        }
+
+        return $this->back($made . ' apparaat/apparaten aangemaakt onder ' . $customer['name'] . '. Vul waar nodig IP, wachtwoord en Device-ID aan.', 'message', site_url('klanten/' . $customer['id']));
+    }
+
+    /** Hoogste volgnummer van "Label N" bij deze klant ("Label" zonder nummer telt als 1) */
+    private function highestNumber(int $customerId, string $label): int
+    {
+        $max = 0;
+        foreach (model(DeviceModel::class)->select('name')->where('customer_id', $customerId)->like('name', $label, 'after')->findAll() as $d) {
+            if ($d['name'] === $label) {
+                $max = max($max, 1);
+            } elseif (preg_match('/^' . preg_quote($label, '/') . ' (\d+)$/u', $d['name'], $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
+
+        return $max;
+    }
+
+    private static function nextIp(string $ip): string
+    {
+        if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return $ip;
+        }
+        $p = explode('.', $ip);
+        if ((int) $p[3] < 254) {
+            $p[3] = (string) ((int) $p[3] + 1);
+        }
+
+        return implode('.', $p);
     }
 
     public function copy($id)

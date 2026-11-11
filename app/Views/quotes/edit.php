@@ -16,6 +16,9 @@ $manage = user_can('billing.manage');
             <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                 <?php foreach (Quotes::STATUSES as $k => [$label]) : ?><option value="<?= $k ?>" <?= $quote['status'] === $k ? 'selected' : '' ?>><?= esc($label) ?></option><?php endforeach ?>
             </select></form>
+        <?php if ($quote['status'] === 'geaccepteerd' && user_can('vault.manage')) : ?>
+        <a href="<?= site_url('offertes/' . $quote['id'] . '/apparaten') ?>" class="btn btn-sm btn-success"><i class="bi bi-hdd-network"></i> Apparaten aanmaken</a>
+        <?php endif ?>
         <form method="post" action="<?= site_url('offertes/' . $quote['id'] . '/prijzen') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-outline-secondary" title="Prijzen van catalogusproducten bijwerken naar de actuele catalogus"><i class="bi bi-arrow-repeat"></i> Prijzen bijwerken</button></form>
         <form method="post" action="<?= site_url('offertes/' . $quote['id'] . '/kopie') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-copy"></i> Kopie</button></form>
     </div>

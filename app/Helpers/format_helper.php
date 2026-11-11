@@ -115,6 +115,55 @@ if (! function_exists('device_is_sensor')) {
     }
 }
 
+if (! function_exists('device_type_guess')) {
+    /**
+     * Raadt aan de hand van productnaam/typenummer welk soort apparaat het is.
+     * Geeft null terug voor toebehoren (kabels, beugels, schijven, licenties…).
+     */
+    function device_type_guess(string $text): ?string
+    {
+        $t = mb_strtolower($text);
+
+        // Toebehoren: geen apparaat
+        if (preg_match('/\b(kabel|cable|patch|beugel|bracket|mount|montage|junction|lasdoos|adapter|voeding|psu|power supply|poe[- ]?injector|injector|harde ?schijf|hdd|ssd|sd[- ]?kaart|micro ?sd|licentie|license|lens|behuizing|housing|connector|rj45|keystone|rack|kast|batterij|battery|accu|sticker|bord|plug|stekker(?!doos))\b/u', $t)
+            && ! preg_match('/\b(socket|nvr|dvr)\b/u', $t)) {
+            return null;
+        }
+
+        $rules = [
+            // Ajax / alarm eerst (woorden als "switch" en "hub" komen ook elders voor)
+            'alarm_motion'   => '/motionprotect|motioncam|combiprotect|curtain|bewegingsmelder|\bpir\b/u',
+            'alarm_contact'  => '/doorprotect|glassprotect|deurcontact|magneetcontact|raamcontact/u',
+            'alarm_keypad'   => '/keypad|bediendeel/u',
+            'alarm_siren'    => '/siren|sirene/u',
+            'alarm_fire'     => '/fireprotect|rookmelder|hittemelder|co[- ]melder|smoke detector/u',
+            'alarm_water'    => '/leaksprotect|waterdetect|lekdetect/u',
+            'alarm_button'   => '/spacecontrol|doublebutton|paniekknop|\bajax\b.*\bbutton\b|^button\b/u',
+            'alarm_repeater' => '/\brex\b|\brex ?2\b/u',
+            'alarm_relay'    => '/\bwallswitch\b|\blightswitch\b|multitransmitter|\bajax\b.*\b(relay|socket)\b|^(relay|socket)\b/u',
+            'alarm_hub'      => '/\bhub ?(2|hybrid|bp|plus)\b|\bajax\b.*\bhub\b|alarmcentrale|alarmpaneel/u',
+            'alarm'          => '/\bajax\b/u',
+            // Hikvision / video
+            'intercom'       => '/ds-k[dvhbi]|intercom|deurstation|videofoon|monitor binnenpost/u',
+            'nvr'            => '/\bnvr\b|\bdvr\b|recorder|ds-[79]\d{3}|\bunvr\b/u',
+            'camera'         => '/ds-2c[deh]|ds-2de|ds-2xs|camera|bullet|dome|turret|\buvc\b|\bg[345] (bullet|dome|flex|instant|pro)\b/u',
+            'access'         => '/ds-k1|toegangs|access control|kaartlezer|reader|\bua[- ]/u',
+            // Ubiquiti / netwerk
+            'router'         => '/\bucg\b|\budm\b|\budr\b|\buxg\b|cloud gateway|dream (machine|router)|\busg\b|gateway|router|firewall|edgerouter|\ber-\d/u',
+            'ap'             => '/\bu[67][- ]?(lite|pro|mesh|lr|plus|enterprise|outdoor|iw|in-wall)\b|\bu[67]-|\buap\b|nanohd|access ?point|\bac[- ](lite|pro|lr|mesh)\b|\buk[- ]ultra\b|\bu6\b|\bu7\b/u',
+            'switch'         => '/\busw\b|\busw-|\bus-\d|flex mini|\bswitch\b|lite \d+ poe|pro \d+ poe/u',
+            'server'         => '/\bnas\b|synology|qnap|\bserver\b|\bunas\b/u',
+        ];
+        foreach ($rules as $type => $re) {
+            if (preg_match($re, $t)) {
+                return $type;
+            }
+        }
+
+        return null;
+    }
+}
+
 if (! function_exists('device_type_label')) {
     function device_type_label(?string $type): string
     {
