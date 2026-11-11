@@ -188,8 +188,9 @@ class Products extends BaseController
             return $this->back('Import mislukt: ' . $e->getMessage(), 'error');
         }
 
-        return $this->back(sprintf('OSEC: %d artikelen ingelezen (%s), %d nieuw, %d bijgewerkt, %d niet meer in de prijslijst (inactief). Nu actief in de database: %d.',
-            $r['total'], $r['net'] ? 'met jouw nettoprijzen' : 'alleen brutoprijzen, korting uit de instellingen', $r['new'], $r['updated'], $r['inactive'], $r['stored']), 'message', site_url('producten?leverancier=' . Catalog::supplierByCode('osec')['id']));
+        return $this->back(sprintf('OSEC: %d artikelen ingelezen (%s), %d nieuw, %d bijgewerkt, %d niet meer in de prijslijst (inactief)%s. Nu actief in de database: %d.',
+            $r['total'], $r['net'] ? 'met jouw nettoprijzen' : 'alleen brutoprijzen, korting uit de instellingen', $r['new'], $r['updated'], $r['inactive'],
+            $r['dupes'] ? ', ' . $r['dupes'] . ' dubbele artikelnummers samengevoegd' : '', $r['stored']), 'message', site_url('producten?leverancier=' . Catalog::supplierByCode('osec')['id']));
     }
 
     public function syncWimood()

@@ -240,7 +240,7 @@ class Catalog
         }
 
         $now = date('Y-m-d H:i:s');
-        $new = $updated = 0;
+        $new = $updated = $dupes = 0;
         $seen = $groups = [];
         $db = db_connect();
         $db->transStart();
@@ -255,8 +255,12 @@ class Catalog
             if (! empty($it['group_name'])) {
                 $groups[$it['group_name']] = true;
             }
+            if (isset($seen[$sku])) {
+                $dupes++; // zelfde artikelnummer staat vaker in de lijst: de laatste regel wint
+            }
             $seen[$sku] = true;
-            $ok = isset($existing[$sku])
+            $isUpdate = isset($existing[$sku]);
+            $ok = $isUpdate
                 ? $model->update($existing[$sku], $row)
                 : $model->insert($row + ['supplier_id' => $supplier['id'], 'supplier_sku' => $sku]);
             if ($ok === false) {
@@ -265,7 +269,12 @@ class Catalog
 
                 throw new RuntimeException('Opslaan mislukt bij artikel ' . $sku . ': ' . ($err['message'] ?? 'onbekende databasefout'));
             }
-            isset($existing[$sku]) ? $updated++ : $new++;
+            if ($isUpdate) {
+                $updated++;
+            } else {
+                $existing[$sku] = (int) $model->getInsertID();
+                $new++;
+            }
         }
 
         $inactive = 0;
@@ -298,7 +307,7 @@ class Catalog
         // Controle: hoeveel staan er nu echt actief in de database?
         $stored = model(ProductModel::class)->where('supplier_id', $supplier['id'])->where('active', 1)->countAllResults();
 
-        return ['new' => $new, 'updated' => $updated, 'inactive' => $inactive, 'groups' => count($groups), 'stored' => $stored];
+        return ['new' => $new, 'updated' => $updated - $dupes, 'inactive' => $inactive, 'groups' => count($groups), 'stored' => $stored, 'dupes' => $dupes];
     }
 
     /** Merk uit de artikelnaam halen (eerste woord als dat een bekend merk is) */
