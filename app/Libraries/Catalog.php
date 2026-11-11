@@ -256,13 +256,16 @@ class Catalog
                 $groups[$it['group_name']] = true;
             }
             $seen[$sku] = true;
-            if (isset($existing[$sku])) {
-                $model->update($existing[$sku], $row);
-                $updated++;
-            } else {
-                $model->insert($row + ['supplier_id' => $supplier['id'], 'supplier_sku' => $sku]);
-                $new++;
+            $ok = isset($existing[$sku])
+                ? $model->update($existing[$sku], $row)
+                : $model->insert($row + ['supplier_id' => $supplier['id'], 'supplier_sku' => $sku]);
+            if ($ok === false) {
+                $err = $db->error();
+                $db->transRollback();
+
+                throw new RuntimeException('Opslaan mislukt bij artikel ' . $sku . ': ' . ($err['message'] ?? 'onbekende databasefout'));
             }
+            isset($existing[$sku]) ? $updated++ : $new++;
         }
 
         $inactive = 0;
@@ -285,6 +288,11 @@ class Catalog
         }
         model(SupplierModel::class)->update($supplier['id'], ['last_import_at' => $now]);
         $db->transComplete();
+        if ($db->transStatus() === false) {
+            $err = $db->error();
+
+            throw new RuntimeException('De import is teruggedraaid door een databasefout: ' . ($err['message'] ?? 'onbekend'));
+        }
         self::reset();
 
         return ['new' => $new, 'updated' => $updated, 'inactive' => $inactive, 'groups' => count($groups)];
