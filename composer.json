@@ -1,0 +1,35 @@
+{
+    "name": "arjan445/klantbeheer",
+    "description": "Klantbeheer: klanten, abonnementen (O365, hosting, domeinen), Moneybird-facturatie en een versleutelde kluis voor apparaten en wachtwoorden.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "ext-curl": "*",
+        "ext-intl": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "codeigniter4/framework": "^4.7.5",
+        "codeigniter4/shield": "^1.4"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^1.9",
+        "mikey179/vfsstream": "^1.6",
+        "phpunit/phpunit": "^10.5"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "autoload": {
+        "exclude-from-classmap": [
+            "**/Database/Migrations/**"
+        ]
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

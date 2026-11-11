@@ -1,0 +1,17 @@
+:root { --kb-blue: #00004F; }
+body { background: #f4f5f9; }
+.kb-nav { background: var(--kb-blue); }
+.kb-main { max-width: 1500px; }
+.card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card-header { background: #fff; font-weight: 600; }
+.kpi .value { font-size: 1.6rem; font-weight: 600; color: var(--kb-blue); }
+.kpi .label { color: #6c757d; font-size: .85rem; }
+.secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
+.table td, .table th { vertical-align: middle; }
+.badge-type { background: #e8e8f7; color: var(--kb-blue); font-weight: 500; }
+.btn-primary { background: var(--kb-blue); border-color: var(--kb-blue); }
+.btn-primary:hover { background: #1a1a7a; border-color: #1a1a7a; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.nav-tabs .nav-link { color: #444; }
+.nav-tabs .nav-link.active { color: var(--kb-blue); font-weight: 600; }
+.row-overdue td { background: #fff4f4 !important; }

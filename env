@@ -1,0 +1,53 @@
+#--------------------------------------------------------------------
+# Klantbeheer - voorbeeldconfiguratie
+# Kopieer naar .env en vul in. Zet .env NOOIT in git.
+#--------------------------------------------------------------------
+
+CI_ENVIRONMENT = production
+# CI_ENVIRONMENT = development
+
+app.baseURL = 'https://klantbeheer.jouwdomein.nl/'
+
+#--------------------------------------------------------------------
+# Database (MySQL/MariaDB)
+#--------------------------------------------------------------------
+database.default.hostname = localhost
+database.default.database = klantbeheer
+database.default.username = klantbeheer
+database.default.password =
+database.default.DBDriver = MySQLi
+database.default.DBPrefix =
+database.default.port = 3306
+
+#--------------------------------------------------------------------
+# Versleuteling van de kluis (wachtwoorden apparaten)
+# Genereer met:  php spark key:generate
+# BEWAAR DEZE SLEUTEL OOK BUITEN DE SERVER (bijv. in je wachtwoordmanager).
+# Kwijt = alle opgeslagen wachtwoorden onleesbaar.
+#--------------------------------------------------------------------
+encryption.key =
+
+#--------------------------------------------------------------------
+# Moneybird
+# Token: Moneybird > Instellingen > Ontwikkelaars > Persoonlijke API-token
+# (rechten: Verkoopfacturen, Contacten, Instellingen)
+# Administratie-ID: het getal in de URL: moneybird.com/<ID>/...
+#--------------------------------------------------------------------
+moneybird.token =
+moneybird.administrationId =
+# Optioneel: standaard btw-tarief-ID (zie Instellingen > Moneybird in de app)
+moneybird.taxRateId =
+# Hoeveel dagen vooruit abonnementen als "te factureren" tonen
+billing.daysAhead = 30
+
+#--------------------------------------------------------------------
+# E-mail (voor herinneringen over verlengingen)
+#--------------------------------------------------------------------
+# email.protocol = smtp
+# email.SMTPHost =
+# email.SMTPUser =
+# email.SMTPPass =
+# email.SMTPPort = 465
+# email.SMTPCrypto = ssl
+# email.fromEmail =
+# email.fromName = Klantbeheer
