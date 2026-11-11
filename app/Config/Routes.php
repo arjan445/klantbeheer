@@ -7,6 +7,7 @@ use App\Controllers\Customers;
 use App\Controllers\Dashboard;
 use App\Controllers\Devices;
 use App\Controllers\Domains;
+use App\Controllers\DsdLicenses;
 use App\Controllers\Search;
 use App\Controllers\Services;
 use App\Controllers\Settings;
@@ -72,6 +73,16 @@ $routes->group('domeinen', ['filter' => 'can:billing.view'], static function ($r
     $routes->match(['GET', 'POST'], 'snel', [Domains::class, 'quick'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [Domains::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Domains::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
+});
+
+// DSD Europe-licenties
+$routes->group('dsd', ['filter' => 'can:billing.view'], static function ($routes) {
+    $routes->get('/', [DsdLicenses::class, 'index']);
+    $routes->post('ophalen', [DsdLicenses::class, 'sync'], ['filter' => 'can:billing.manage']);
+    $routes->post('klant', [DsdLicenses::class, 'linkClient'], ['filter' => 'can:billing.manage']);
+    $routes->post('koppel', [DsdLicenses::class, 'linkItem'], ['filter' => 'can:billing.manage']);
+    $routes->post('aantal', [DsdLicenses::class, 'takeQuantity'], ['filter' => 'can:billing.manage']);
+    $routes->post('ontkoppel', [DsdLicenses::class, 'unlink'], ['filter' => 'can:billing.manage']);
 });
 
 // Facturatie

@@ -53,6 +53,7 @@ class Dashboard extends BaseController
                 'upcoming'   => $due,
                 'overdue'    => count(array_filter($due, static fn ($s) => $s['next_invoice_date'] <= $today)),
                 'dueNow'     => count(BillingLib::due()),
+                'dsdUnder'   => count(array_filter(\App\Libraries\Dsd::overview(), static fn ($i) => $i['check'] === 'under')),
             ];
         }
 

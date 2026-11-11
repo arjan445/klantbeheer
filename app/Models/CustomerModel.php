@@ -10,6 +10,6 @@ class CustomerModel extends Model
     protected $returnType    = 'array';
     protected $useTimestamps = true;
     protected $updatedField  = 'updated_at';
-    protected $allowedFields = ['name', 'contact_name', 'email', 'phone', 'address', 'zipcode', 'city', 'moneybird_contact_id', 'notes', 'active', 'internal'];
+    protected $allowedFields = ['name', 'contact_name', 'email', 'phone', 'address', 'zipcode', 'city', 'moneybird_contact_id', 'notes', 'active', 'internal', 'dsd_client_id'];
 
 }

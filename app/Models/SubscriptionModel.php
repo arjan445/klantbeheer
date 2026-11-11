@@ -10,7 +10,7 @@ class SubscriptionModel extends Model
     protected $returnType    = 'array';
     protected $useTimestamps = true;
     protected $updatedField  = 'updated_at';
-    protected $allowedFields = ['customer_id', 'service_id', 'site_id', 'label', 'quantity', 'price', 'purchase_price', 'interval_months', 'start_date', 'next_invoice_date', 'end_date', 'status', 'notes', 'domain_id'];
+    protected $allowedFields = ['customer_id', 'service_id', 'site_id', 'label', 'quantity', 'price', 'purchase_price', 'interval_months', 'start_date', 'next_invoice_date', 'end_date', 'status', 'notes', 'domain_id', 'dsd_item_key'];
 
     /**
      * Abonnementen met dienst- en klantgegevens en de effectieve prijzen.

@@ -41,6 +41,12 @@ moneybird.taxRateId =
 billing.daysAhead = 30
 
 #--------------------------------------------------------------------
+# DSD Europe (licenties)
+# API-sleutel: DSD > Instellingen > API Keys
+#--------------------------------------------------------------------
+dsd.apiKey =
+
+#--------------------------------------------------------------------
 # E-mail (voor herinneringen over verlengingen)
 #--------------------------------------------------------------------
 # email.protocol = smtp

@@ -1,5 +1,12 @@
 <h3 class="mb-4">Dashboard</h3>
 
+<?php if (! empty($dsdUnder)) : ?>
+<div class="alert alert-danger d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-exclamation-triangle"></i> Bij <?= (int) $dsdUnder ?> licentie(s) heb je bij DSD meer staan dan je factureert.</span>
+    <a href="<?= site_url('dsd?filter=under') ?>" class="btn btn-sm btn-danger">Bekijken</a>
+</div>
+<?php endif ?>
+
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg"><div class="card kpi"><div class="card-body">
         <div class="label">Actieve klanten</div><div class="value"><?= (int) $customers ?></div>
