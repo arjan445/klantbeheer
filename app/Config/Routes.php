@@ -7,6 +7,8 @@ use App\Controllers\Customers;
 use App\Controllers\Dashboard;
 use App\Controllers\Devices;
 use App\Controllers\Domains;
+use App\Controllers\Products;
+use App\Controllers\Quotes;
 use App\Controllers\DsdLicenses;
 use App\Controllers\Search;
 use App\Controllers\Services;
@@ -83,6 +85,30 @@ $routes->group('dsd', ['filter' => 'can:billing.view'], static function ($routes
     $routes->post('koppel', [DsdLicenses::class, 'linkItem'], ['filter' => 'can:billing.manage']);
     $routes->post('aantal', [DsdLicenses::class, 'takeQuantity'], ['filter' => 'can:billing.manage']);
     $routes->post('ontkoppel', [DsdLicenses::class, 'unlink'], ['filter' => 'can:billing.manage']);
+});
+
+// Producten (catalogus voor offertes)
+$routes->group('producten', ['filter' => 'can:billing.view'], static function ($routes) {
+    $routes->get('/', [Products::class, 'index']);
+    $routes->get('zoek', [Products::class, 'lookup']);
+    $routes->match(['GET', 'POST'], 'nieuw', [Products::class, 'create'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], '(:num)/bewerken', [Products::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], 'leveranciers', [Products::class, 'suppliers'], ['filter' => 'can:billing.manage']);
+    $routes->post('import/osec', [Products::class, 'importOsec'], ['filter' => 'can:billing.manage']);
+    $routes->post('import/wimood', [Products::class, 'syncWimood'], ['filter' => 'can:billing.manage']);
+});
+
+// Offertes
+$routes->group('offertes', ['filter' => 'can:billing.view'], static function ($routes) {
+    $routes->get('/', [Quotes::class, 'index']);
+    $routes->match(['GET', 'POST'], 'nieuw', [Quotes::class, 'create'], ['filter' => 'can:billing.manage']);
+    $routes->get('(:num)', [Quotes::class, 'edit/$1']);
+    $routes->post('(:num)', [Quotes::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/moneybird', [Quotes::class, 'toMoneybird/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/status', [Quotes::class, 'status/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/kopie', [Quotes::class, 'copy/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/prijzen', [Quotes::class, 'refreshPrices/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/verwijderen', [Quotes::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
 });
 
 // Facturatie

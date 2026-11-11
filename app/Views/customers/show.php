@@ -5,6 +5,9 @@
         <h3 class="mb-0"><?= esc($c['name']) ?> <?= $c['active'] ? '' : '<span class="badge text-bg-secondary fs-6 align-middle">inactief</span>' ?><?= ! empty($c['internal']) ? ' <span class="badge text-bg-info fs-6 align-middle">eigen gebruik</span>' : '' ?></h3>
     </div>
     <div class="d-flex gap-2">
+        <?php if (user_can('billing.manage') && empty($c['internal'])) : ?>
+            <a href="<?= site_url('offertes/nieuw?klant=' . $c['id']) ?>" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-text"></i> Offerte</a>
+        <?php endif ?>
         <?php if (user_can('customers.manage')) : ?>
             <a href="<?= site_url('klanten/' . $c['id'] . '/bewerken') ?>" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i> Bewerken</a>
         <?php endif ?>

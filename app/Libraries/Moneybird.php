@@ -101,6 +101,42 @@ class Moneybird
         ]);
     }
 
+    public function estimateUrl(string $estimateId): string
+    {
+        return 'https://moneybird.com/' . rawurlencode($this->administrationId) . '/estimates/' . rawurlencode($estimateId);
+    }
+
+    /**
+     * Maakt een conceptofferte aan.
+     *
+     * @param list<array{description:string, price:float|string, amount:float|string, tax_rate_id?:?string}> $lines
+     */
+    public function createEstimate(string $contactId, array $lines, ?string $reference = null): array
+    {
+        $details = [];
+        foreach ($lines as $line) {
+            if (! empty($line['text'])) {
+                $details[] = ['description' => $line['description']]; // tekstregel / kopje
+                continue;
+            }
+            $details[] = array_filter([
+                'description' => $line['description'],
+                'price'       => number_format((float) $line['price'], 2, '.', ''),
+                'amount'      => rtrim(rtrim(number_format((float) $line['amount'], 2, '.', ''), '0'), '.'),
+                'tax_rate_id' => $line['tax_rate_id'] ?? null,
+            ], static fn ($v) => $v !== null && $v !== '');
+        }
+
+        return $this->request('POST', 'estimates', null, [
+            'estimate' => array_filter([
+                'contact_id'          => $contactId,
+                'reference'           => $reference,
+                'prices_are_incl_tax' => false,
+                'details_attributes'  => $details,
+            ], static fn ($v) => $v !== null),
+        ]);
+    }
+
     private function request(string $method, string $path, ?array $query = null, ?array $body = null): array
     {
         if (! $this->configured()) {

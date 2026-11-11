@@ -29,12 +29,20 @@
                 <li class="nav-item"><a class="nav-link <?= url_is('klanten*') ? 'active' : '' ?>" href="<?= site_url('klanten') ?>">Klanten</a></li>
                 <?php endif ?>
                 <?php if (user_can('billing.view')) : ?>
-                <li class="nav-item"><a class="nav-link <?= url_is('abonnementen*') ? 'active' : '' ?>" href="<?= site_url('abonnementen') ?>">Abonnementen</a></li>
-                <li class="nav-item"><a class="nav-link <?= url_is('domeinen*') ? 'active' : '' ?>" href="<?= site_url('domeinen') ?>">Domeinen</a></li>
-                <li class="nav-item"><a class="nav-link <?= url_is('dsd*') ? 'active' : '' ?>" href="<?= site_url('dsd') ?>">Licenties</a></li>
-                <li class="nav-item"><a class="nav-link <?= url_is('facturatie*') ? 'active' : '' ?>" href="<?= site_url('facturatie') ?>">Facturatie</a></li>
-                <li class="nav-item"><a class="nav-link <?= url_is('diensten*') ? 'active' : '' ?>" href="<?= site_url('diensten') ?>">Diensten</a></li>
-                <li class="nav-item"><a class="nav-link <?= url_is('kostprijzen*') ? 'active' : '' ?>" href="<?= site_url('kostprijzen') ?>">Kostprijzen</a></li>
+                <li class="nav-item"><a class="nav-link <?= url_is('offertes*') || url_is('producten*') ? 'active' : '' ?>" href="<?= site_url('offertes') ?>">Offertes</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle <?= url_is('abonnementen*') || url_is('domeinen*') || url_is('dsd*') || url_is('facturatie*') || url_is('diensten*') || url_is('kostprijzen*') ? 'active' : '' ?>" href="#" data-bs-toggle="dropdown">Abonnementen</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="<?= site_url('abonnementen') ?>">Abonnementen</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('domeinen') ?>">Domeinen</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('dsd') ?>">Licenties (DSD)</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('facturatie') ?>">Facturatie</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="<?= site_url('diensten') ?>">Diensten</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('kostprijzen') ?>">Kostprijzen</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item"><a class="nav-link <?= url_is('producten*') ? 'active' : '' ?>" href="<?= site_url('producten') ?>">Producten</a></li>
                 <?php endif ?>
                 <?php if (user_can('vault.view')) : ?>
                 <li class="nav-item"><a class="nav-link <?= url_is('apparaten*') ? 'active' : '' ?>" href="<?= site_url('apparaten') ?>">Apparaten</a></li>

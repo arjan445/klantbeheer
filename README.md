@@ -8,6 +8,11 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
 - **Domeinen**: per domein zie je of het bij jou geregistreerd is, of het bij jou gehost wordt en wat er nog meer aan hangt, zoals plugins. Je kunt filteren op *Alleen registratie*, *Registratie + hosting*, *Hosting, domein extern* en *Niets actief*. Abonnementen koppel je aan een domein; tik je een nieuw domein in, dan wordt het automatisch aangemaakt. Met **Snel invoeren** zet je veel domeinen in één keer neer: per regel een domein en een klant, met vinkjes voor registratie, hosting en een extra dienst. Je kunt ook een hele lijst domeinen plakken, of de complete tabel uit het domeinoverzicht van je registrar (bijv. Vimexx). De domeinnamen worden er dan uit gehaald, en een datum op dezelfde regel wordt de factuurdatum.
 - **Eigen gebruik**: zet bij een klant (bijv. je eigen bedrijf) het vinkje *Eigen gebruik*. Domeinen en abonnementen daarvan worden bijgehouden, maar nooit gefactureerd en niet als omzet geteld. Ze tellen wel mee bij de verdeling van de kostprijs, want ze draaien op hetzelfde platform. Hun kosten worden op het dashboard van de marge afgetrokken.
 - **Licenties (DSD Europe)**: haalt je actieve contracten op bij DSD, met per eindklant het product, het aantal, de inkoopprijs en de verlengdatum. Daarnaast zie je wat je zelf factureert. Verschillen worden gemarkeerd, bijvoorbeeld "bij DSD 7 gebruikers, gefactureerd 5", en met één klik zet je het aantal in het abonnement gelijk aan DSD. De DSD-inkoopprijs wordt automatisch de inkoopprijs van het gekoppelde abonnement. Eindklanten worden op naam aan klanten gekoppeld, of je koppelt ze met de hand. De verlengdatum bij DSD is alleen ter info; je eigen factuurdatums staan daar los van.
+- **Offertes**: je stelt een offerte samen uit de productcatalogus: zoeken, Enter en de regel staat erin. Verkoopprijs = kostprijs × opslag (standaard 1,2). Daarnaast kun je losse producten (eventueel te bewaren in de catalogus), arbeid (uurtarief) en tekstregels toevoegen. Je ziet het totaal, de materiaalmarge en de arbeid. Met één klik wordt het een conceptofferte in Moneybird. Je kunt offertes ook kopiëren en de prijzen opnieuw ophalen uit de catalogus.
+- **Producten**:
+  - **OSEC**: download de prijslijst (.xlsx) in Mijn Osec en upload die. Prijzen zijn bruto; je dealerkorting stel je in per leverancier en per productgroep. De groep "Netto prijzen" krijgt geen korting. Artikelen die uit de prijslijst verdwijnen, worden inactief.
+  - **Wimood**: via de API worden je bestellingen opgehaald, met de echte inkoopprijs per product (laatste bestelling telt).
+  - **Losse producten**: met de hand, bij leverancier "Overig" of een eigen leverancier.
 - **Facturatie**: een overzicht van wat de komende *x* dagen verlengd wordt, gegroepeerd per klant. Met één klik maak je een **conceptfactuur in Moneybird**, met per regel de periode erbij. Daarna schuift het abonnement automatisch een periode op. Je kunt ook handmatig als gefactureerd markeren.
 - **Kostprijzen**: per kostenpool (bijv. Hostingplatform) vul je de vaste kosten per leverancier in, per maand of per jaar (Hetzner VPS, Plesk-licentie, Imunify…). De jaarkosten worden verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht, en worden automatisch de inkoopprijs van die diensten.
 - **Dashboard**: omzet en marge per jaar, uitgesplitst per soort dienst, plus de verlengingen van de komende 60 dagen.
@@ -47,6 +52,16 @@ Zet de webroot van de (sub)domein op de map `public/`.
    - Met **Contacten ophalen & koppelen** worden je Moneybird-contacten aan klanten gekoppeld, op ID en anders op exacte naam. Als je dat aanvinkt, worden ontbrekende klanten ook aangemaakt.
 
 Facturen worden altijd als **concept** aangemaakt. Je controleert en verstuurt ze zelf in Moneybird.
+
+### Wimood en offertes (optioneel)
+
+Zet je Wimood-API-sleutel in `.env` als `wimood.apiKey`, en eventueel je uurtarief als `quote.hourlyRate` (standaard 65). Klik in **Producten** op *Ophalen* bij Wimood, of laat het elke nacht gebeuren:
+
+```
+20 3 * * *  cd /pad/naar/klantbeheer && php spark klantbeheer:wimood
+```
+
+Stel je kortingen en opslag in onder **Producten › Leveranciers & marges**.
 
 ### DSD Europe (optioneel)
 
