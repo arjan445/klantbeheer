@@ -8,14 +8,14 @@ use CodeIgniter\CLI\CLI;
 use Throwable;
 
 /**
- * Producten en inkoopprijzen uit je Wimood-bestellingen ophalen.
+ * Producten en inkoopprijzen uit de Wimood-productfeed ophalen.
  * Cron, bijv. elke nacht:  20 3 * * *  cd /pad && php spark klantbeheer:wimood
  */
 class SyncWimood extends BaseCommand
 {
     protected $group       = 'Klantbeheer';
     protected $name        = 'klantbeheer:wimood';
-    protected $description = 'Haal producten en inkoopprijzen uit je Wimood-bestellingen op.';
+    protected $description = 'Haal producten en inkoopprijzen uit de Wimood-productfeed op.';
 
     public function run(array $params)
     {
@@ -26,7 +26,7 @@ class SyncWimood extends BaseCommand
 
             return EXIT_ERROR;
         }
-        CLI::write(sprintf('%d bestellingen, %d nieuw, %d bijgewerkt.', $r['orders'], $r['new'], $r['updated']), 'green');
+        CLI::write(sprintf('%d producten, %d nieuw, %d bijgewerkt, %d inactief.', $r['total'], $r['new'], $r['updated'], $r['inactive']), 'green');
 
         return EXIT_SUCCESS;
     }

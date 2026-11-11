@@ -203,7 +203,7 @@ $manage = user_can('billing.manage');
     function render() {
         results.innerHTML = items.map((p, i) => '<button type="button" class="list-group-item list-group-item-action py-1' + (i === active ? ' active' : '') + '" data-i="' + i + '">' +
             '<div class="d-flex justify-content-between"><span>' + esc(p.name) + '</span><span class="fw-semibold text-nowrap ms-3">' + (p.sell !== null ? fmt.format(p.sell) : '—') + '</span></div>' +
-            '<div class="small ' + (i === active ? '' : 'text-muted') + '">' + esc([p.sku, p.supplier, p.group].filter(Boolean).join(' · ')) + (p.cost !== null ? ' · inkoop ' + fmt.format(p.cost) : '') + (p.info ? ' · ' + esc(p.info) : '') + '</div></button>').join('');
+            '<div class="small ' + (i === active ? '' : 'text-muted') + '">' + esc([p.sku, p.supplier, p.group].filter(Boolean).join(' · ')) + (p.cost !== null ? ' · inkoop ' + fmt.format(p.cost) : '') + (p.advice ? ' · advies ' + fmt.format(p.advice) : '') + (p.info ? ' · ' + esc(p.info) : '') + '</div></button>').join('');
     }
     const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function pick(p) {

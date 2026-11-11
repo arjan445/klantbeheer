@@ -8,7 +8,7 @@ use App\Models\SupplierModel;
 use RuntimeException;
 
 /**
- * Productcatalogus: prijzen berekenen en importeren (OSEC-prijslijst, Wimood-bestellingen).
+ * Productcatalogus: prijzen berekenen en importeren (OSEC-prijslijst, Wimood-productfeed).
  *
  * Kostprijs  = vaste inkoopprijs (Wimood/handmatig), anders bruto × (1 − korting%)
  * Verkoop    = vaste verkoopprijs, anders kostprijs × opslag (standaard 1,2)
@@ -124,64 +124,61 @@ class Catalog
     }
 
     /**
-     * Wimood: producten en echte inkoopprijzen uit je bestellingen (API).
+     * Wimood: complete productfeed met jouw inkoopprijs (XML).
      *
-     * @return array{new:int, updated:int, inactive:int, groups:int, orders:int}
+     * https://www.wimoodshop.nl/api/index.php?api_key=…&klantnummer=…
+     * Per product: product_id, brand, product_code, ean, product_name, stock, msrp (advies), prijs (jouw prijs).
+     *
+     * @return array{new:int, updated:int, inactive:int, groups:int, total:int}
      */
     public static function syncWimood(): array
     {
-        $key = (string) env('wimood.apiKey', '');
-        if ($key === '') {
-            throw new RuntimeException('Wimood is niet ingesteld (wimood.apiKey in .env).');
+        $key      = (string) env('wimood.apiKey', '');
+        $customer = (string) env('wimood.klantnummer', '');
+        if ($key === '' || $customer === '') {
+            throw new RuntimeException('Wimood is niet ingesteld (wimood.apiKey en wimood.klantnummer in .env).');
         }
-        $base = rtrim((string) env('wimood.url', 'https://api.wimood.nl/v1'), '/');
-        $get  = static function (string $path, array $query = []) use ($base, $key) {
-            $res = \Config\Services::curlrequest([], null, null, false)->request('GET', $base . $path, [
-                'headers'     => ['X-AUTH-TOKEN' => $key, 'Accept' => 'application/json'],
-                'query'       => $query,
-                'http_errors' => false,
-                'timeout'     => 30,
-            ]);
-            $data = json_decode((string) $res->getBody(), true);
-            if ($res->getStatusCode() >= 400) {
-                throw new RuntimeException('Wimood gaf een fout (' . $res->getStatusCode() . '): ' . ($data['message'] ?? implode(' ', (array) ($data['errors'] ?? []))));
-            }
+        $url = (string) env('wimood.feedUrl', 'https://www.wimoodshop.nl/api/index.php');
 
-            return is_array($data) ? $data : [];
-        };
-
-        // Alle bestellingen (nieuwste prijs wint)
-        $orders = [];
-        for ($offset = 0; $offset < 10000; $offset += 100) {
-            $page = $get('/orders', ['limit' => 100, 'offset' => $offset]);
-            array_push($orders, ...($page['orders'] ?? []));
-            if (count($page['orders'] ?? []) < 100 || $offset + 100 >= (int) ($page['total'] ?? 0)) {
-                break;
-            }
+        $res = \Config\Services::curlrequest([], null, null, false)->request('GET', $url, [
+            'query'       => ['api_key' => $key, 'klantnummer' => $customer],
+            'http_errors' => false,
+            'timeout'     => 120,
+        ]);
+        $body = (string) $res->getBody();
+        if ($res->getStatusCode() >= 400 || ! str_contains($body, '<products')) {
+            throw new RuntimeException('Wimood gaf geen productlijst terug (' . $res->getStatusCode() . '): ' . mb_substr(strip_tags($body), 0, 200));
         }
-        usort($orders, static fn ($a, $b) => strcmp($a['order_date'], $b['order_date']));
+
+        $prev = libxml_use_internal_errors(true);
+        $xml  = simplexml_load_string($body);
+        libxml_use_internal_errors($prev);
+        if ($xml === false) {
+            throw new RuntimeException('De productlijst van Wimood kon niet worden gelezen.');
+        }
 
         $items = [];
-        foreach ($orders as $o) {
-            foreach ($get('/orders/' . rawurlencode((string) $o['order_number']))['products'] ?? [] as $p) {
-                if (empty($p['product_id']) || (float) ($p['price'] ?? 0) <= 0 || empty($p['brand'])) {
-                    continue; // kortingsregels e.d.
-                }
-                $items[(string) $p['product_id']] = [
-                    'supplier_sku' => (string) $p['product_id'],
-                    'sku'          => $p['sku'] ?? null,
-                    'name'         => $p['product_name'] ?? $p['sku'],
-                    'brand'        => $p['brand'],
-                    'group_name'   => $p['brand'],
-                    'cost_price'   => round((float) $p['price'], 2),
-                    'info'         => 'Laatst besteld ' . substr($o['order_date'], 0, 10),
-                ];
-            }
+        foreach ($xml->product as $p) {
+            $price = (string) $p->prijs;
+            $msrp  = (string) $p->msrp;
+            $brand = trim((string) $p->brand);
+            $stock = (string) $p->stock;
+            $items[] = [
+                'supplier_sku' => trim((string) $p->product_id),
+                'sku'          => trim((string) $p->product_code) ?: null,
+                'name'         => trim((string) $p->product_name),
+                'brand'        => $brand ?: null,
+                'group_name'   => $brand ?: 'Overig',
+                'cost_price'   => is_numeric($price) ? round((float) $price, 2) : null,
+                'list_price'   => is_numeric($msrp) ? round((float) $msrp, 2) : null,
+                'info'         => $stock !== '' ? 'Voorraad ' . (int) $stock : null,
+            ];
+        }
+        if ($items === []) {
+            throw new RuntimeException('De productlijst van Wimood is leeg.');
         }
 
-        $r = self::upsert(self::supplierByCode('wimood'), array_values($items), 'wimood', false);
-
-        return $r + ['orders' => count($orders)];
+        return self::upsert(self::supplierByCode('wimood'), $items, 'wimood', true) + ['total' => count($items)];
     }
 
     /**

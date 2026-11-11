@@ -47,10 +47,11 @@ billing.daysAhead = 30
 dsd.apiKey =
 
 #--------------------------------------------------------------------
-# Wimood (producten + inkoopprijzen uit je bestellingen)
-# API-sleutel: in je Wimoodshop-account
+# Wimood (productfeed met jouw inkoopprijzen)
+# API-sleutel en klantnummer: in je Wimoodshop-account
 #--------------------------------------------------------------------
 wimood.apiKey =
+wimood.klantnummer =
 
 # Uurtarief voor arbeid in offertes (excl. btw)
 quote.hourlyRate = 65

@@ -20,7 +20,7 @@
             <div>
                 <div class="fw-semibold"><?= esc($s['name']) ?> <span class="badge text-bg-light"><?= (int) ($counts[$s['id']] ?? 0) ?> producten</span></div>
                 <div class="small text-muted">
-                    <?= $s['code'] === 'osec' ? 'Bruto prijslijst, korting standaard ' . aantal($s['default_discount']) . '%' : 'Echte inkoopprijzen uit je bestellingen' ?>
+                    <?= $s['code'] === 'osec' ? 'Bruto prijslijst, korting standaard ' . aantal($s['default_discount']) . '%' : 'Productfeed met jouw inkoopprijs' ?>
                     · opslag ×<?= rtrim(rtrim(number_format((float) $s['default_markup'], 3, ',', ''), '0'), ',') ?>
                     <?= $s['last_import_at'] ? '· bijgewerkt ' . date('d-m-Y H:i', strtotime($s['last_import_at'])) : '' ?>
                 </div>
@@ -51,7 +51,7 @@
 
 <div class="card"><div class="card-body p-0">
 <table class="table table-sm table-hover mb-0 align-middle">
-    <thead><tr><th>Product</th><th>Leverancier</th><th>Groep</th><th class="text-end">Bruto</th><th class="text-end">Kostprijs</th><th class="text-end">Opslag</th><th class="text-end">Verkoop</th><th></th></tr></thead>
+    <thead><tr><th>Product</th><th>Leverancier</th><th>Groep</th><th class="text-end">Bruto / advies</th><th class="text-end">Kostprijs</th><th class="text-end">Opslag</th><th class="text-end">Verkoop</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($products as $p) : ?>
         <?php $pr = Catalog::price($p); ?>
@@ -63,7 +63,8 @@
             <td class="text-end small"><?= $p['list_price'] !== null ? euro($p['list_price']) : '' ?></td>
             <td class="text-end"><?= $pr['cost'] !== null ? euro($pr['cost']) : '—' ?></td>
             <td class="text-end small">×<?= rtrim(rtrim(number_format($pr['markup'], 3, ',', ''), '0'), ',') ?></td>
-            <td class="text-end fw-semibold"><?= $pr['sell'] !== null ? euro($pr['sell']) : '—' ?></td>
+            <td class="text-end fw-semibold"><?= $pr['sell'] !== null ? euro($pr['sell']) : '—' ?>
+                <?php if ($p['source'] === 'wimood' && $p['list_price'] !== null && $pr['sell'] !== null && $pr['sell'] > (float) $p['list_price']) : ?><div class="small text-warning fw-normal" title="Hoger dan de adviesprijs">&gt; advies</div><?php endif ?></td>
             <td class="text-end"><?php if ($manage) : ?><a href="<?= site_url('producten/' . $p['id'] . '/bewerken') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a><?php endif ?></td>
         </tr>
     <?php endforeach ?>

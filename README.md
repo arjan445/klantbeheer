@@ -11,7 +11,7 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
 - **Offertes**: je stelt een offerte samen uit de productcatalogus: zoeken, Enter en de regel staat erin. Verkoopprijs = kostprijs × opslag (standaard 1,2). Daarnaast kun je losse producten (eventueel te bewaren in de catalogus), arbeid (uurtarief) en tekstregels toevoegen. Je ziet het totaal, de materiaalmarge en de arbeid. Met één klik wordt het een conceptofferte in Moneybird. Je kunt offertes ook kopiëren en de prijzen opnieuw ophalen uit de catalogus.
 - **Producten**:
   - **OSEC**: download de prijslijst (.xlsx) in Mijn Osec en upload die. Prijzen zijn bruto; je dealerkorting stel je in per leverancier en per productgroep. De groep "Netto prijzen" krijgt geen korting. Artikelen die uit de prijslijst verdwijnen, worden inactief.
-  - **Wimood**: via de API worden je bestellingen opgehaald, met de echte inkoopprijs per product (laatste bestelling telt).
+  - **Wimood**: de complete productfeed (±2.500 artikelen) wordt opgehaald, met jouw inkoopprijs, de adviesprijs en de voorraad. Producten die uit de feed verdwijnen, worden inactief.
   - **Losse producten**: met de hand, bij leverancier "Overig" of een eigen leverancier.
 - **Facturatie**: een overzicht van wat de komende *x* dagen verlengd wordt, gegroepeerd per klant. Met één klik maak je een **conceptfactuur in Moneybird**, met per regel de periode erbij. Daarna schuift het abonnement automatisch een periode op. Je kunt ook handmatig als gefactureerd markeren.
 - **Kostprijzen**: per kostenpool (bijv. Hostingplatform) vul je de vaste kosten per leverancier in, per maand of per jaar (Hetzner VPS, Plesk-licentie, Imunify…). De jaarkosten worden verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht, en worden automatisch de inkoopprijs van die diensten.
@@ -55,7 +55,7 @@ Facturen worden altijd als **concept** aangemaakt. Je controleert en verstuurt z
 
 ### Wimood en offertes (optioneel)
 
-Zet je Wimood-API-sleutel in `.env` als `wimood.apiKey`, en eventueel je uurtarief als `quote.hourlyRate` (standaard 65). Klik in **Producten** op *Ophalen* bij Wimood, of laat het elke nacht gebeuren:
+Zet je Wimood-API-sleutel en je klantnummer in `.env` als `wimood.apiKey` en `wimood.klantnummer`, en eventueel je uurtarief als `quote.hourlyRate` (standaard 65). Klik in **Producten** op *Ophalen* bij Wimood, of laat het elke nacht gebeuren:
 
 ```
 20 3 * * *  cd /pad/naar/klantbeheer && php spark klantbeheer:wimood

@@ -77,6 +77,7 @@ class Products extends BaseController
                 'cost'     => $price['cost'],
                 'sell'     => $price['sell'],
                 'info'     => $p['info'],
+                'advice'   => $p['source'] === 'wimood' && $p['list_price'] !== null ? (float) $p['list_price'] : null,
             ];
         }
 
@@ -197,6 +198,6 @@ class Products extends BaseController
             return $this->back('Wimood ophalen mislukt: ' . $e->getMessage(), 'error');
         }
 
-        return $this->back(sprintf('Wimood: %d bestellingen doorgelopen, %d nieuwe producten, %d bijgewerkt.', $r['orders'], $r['new'], $r['updated']), 'message', site_url('producten?leverancier=' . Catalog::supplierByCode('wimood')['id']));
+        return $this->back(sprintf('Wimood: %d producten in de feed, %d nieuw, %d bijgewerkt, %d niet meer leverbaar (inactief).', $r['total'], $r['new'], $r['updated'], $r['inactive']), 'message', site_url('producten?leverancier=' . Catalog::supplierByCode('wimood')['id']));
     }
 }
