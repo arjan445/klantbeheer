@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\ServiceModel;
+use App\Models\CostPoolModel;
 use App\Models\SubscriptionModel;
 
 class Services extends BaseController
@@ -27,7 +28,9 @@ class Services extends BaseController
                 (SELECT COALESCE(SUM(quantity),0) FROM subscriptions WHERE subscriptions.service_id = services.id AND subscriptions.status = \'active\') AS qty')
             ->orderBy('active', 'DESC')->orderBy('type')->orderBy('name')->findAll();
 
-        return $this->page('services/index', ['services' => $services], 'Diensten');
+        $pools = array_column(model(CostPoolModel::class)->findAll(), 'name', 'id');
+
+        return $this->page('services/index', ['services' => $services, 'pools' => $pools], 'Diensten');
     }
 
     public function create()
@@ -44,8 +47,10 @@ class Services extends BaseController
     {
         $title = $service ? 'Dienst bewerken' : 'Nieuwe dienst';
 
+        $pool = ! empty($service['cost_pool_id']) ? model(CostPoolModel::class)->find($service['cost_pool_id']) : null;
+
         if (! $this->request->is('post')) {
-            return $this->page('services/form', ['service' => $service], $title);
+            return $this->page('services/form', ['service' => $service, 'pool' => $pool], $title);
         }
 
         $post = $this->nullify($this->request->getPost(self::FIELDS));
@@ -55,16 +60,21 @@ class Services extends BaseController
             }
         }
         if (! $this->validateData($post, $this->rules())) {
-            return $this->page('services/form', ['service' => $post + ['id' => $service['id'] ?? null], 'validation' => true], $title);
+            return $this->page('services/form', ['service' => $post + ['id' => $service['id'] ?? null, 'cost_pool_id' => $service['cost_pool_id'] ?? null], 'pool' => $pool, 'validation' => true], $title);
         }
         $post['active'] = $this->request->getPost('active') ? 1 : 0;
         $post['unit'] ??= service_types()[$post['type']][1];
+
+        if ($service && ! empty($service['cost_pool_id'])) {
+            unset($post['purchase_price']); // komt uit de kostenpool
+        }
 
         if ($service) {
             model(ServiceModel::class)->update($service['id'], $post);
         } else {
             model(ServiceModel::class)->insert($post);
         }
+        \App\Libraries\CostPools::recalculate();
 
         return $this->back('Dienst opgeslagen.', 'message', site_url('diensten'));
     }

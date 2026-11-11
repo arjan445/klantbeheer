@@ -10,6 +10,6 @@ class ServiceModel extends Model
     protected $returnType    = 'array';
     protected $useTimestamps = true;
     protected $updatedField  = 'updated_at';
-    protected $allowedFields = ['name', 'type', 'unit', 'price', 'purchase_price', 'interval_months', 'supplier', 'moneybird_product_id', 'tax_rate_id', 'active', 'notes'];
+    protected $allowedFields = ['name', 'type', 'unit', 'price', 'purchase_price', 'interval_months', 'supplier', 'moneybird_product_id', 'tax_rate_id', 'active', 'notes', 'cost_pool_id', 'cost_weight'];
 
 }

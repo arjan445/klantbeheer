@@ -14,7 +14,15 @@
         </div>
         <div class="col-md-3"><label class="form-label">Eenheid</label><input name="unit" class="form-control" value="<?= esc($s['unit'] ?? '') ?>" placeholder="gebruiker, domein, licentie"></div>
         <div class="col-md-3"><label class="form-label">Verkoopprijs excl. btw *</label><div class="input-group"><span class="input-group-text">€</span><input name="price" class="form-control" required value="<?= esc($s['price'] ?? '') ?>"></div></div>
-        <div class="col-md-3"><label class="form-label">Inkoopprijs</label><div class="input-group"><span class="input-group-text">€</span><input name="purchase_price" class="form-control" value="<?= esc($s['purchase_price'] ?? '') ?>"></div></div>
+        <div class="col-md-3"><label class="form-label">Inkoopprijs</label>
+            <?php if (! empty($pool)) : ?>
+                <div class="input-group"><span class="input-group-text">€</span><input class="form-control" value="<?= esc($s['purchase_price'] ?? '') ?>" disabled></div>
+                <div class="form-text"><i class="bi bi-diagram-3"></i> Automatisch uit kostenpool <a href="<?= site_url('kostprijzen') ?>"><?= esc($pool['name']) ?></a>.</div>
+            <?php else : ?>
+                <div class="input-group"><span class="input-group-text">€</span><input name="purchase_price" class="form-control" value="<?= esc($s['purchase_price'] ?? '') ?>"></div>
+                <div class="form-text">Of laat hem uitrekenen via <a href="<?= site_url('kostprijzen') ?>">Kostprijzen</a>.</div>
+            <?php endif ?>
+        </div>
         <div class="col-md-3"><label class="form-label">Factureren per *</label>
             <select name="interval_months" class="form-select">
                 <?php foreach ([1, 3, 6, 12, 24] as $m) : ?>

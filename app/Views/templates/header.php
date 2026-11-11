@@ -32,6 +32,7 @@
                 <li class="nav-item"><a class="nav-link <?= url_is('abonnementen*') ? 'active' : '' ?>" href="<?= site_url('abonnementen') ?>">Abonnementen</a></li>
                 <li class="nav-item"><a class="nav-link <?= url_is('facturatie*') ? 'active' : '' ?>" href="<?= site_url('facturatie') ?>">Facturatie</a></li>
                 <li class="nav-item"><a class="nav-link <?= url_is('diensten*') ? 'active' : '' ?>" href="<?= site_url('diensten') ?>">Diensten</a></li>
+                <li class="nav-item"><a class="nav-link <?= url_is('kostprijzen*') ? 'active' : '' ?>" href="<?= site_url('kostprijzen') ?>">Kostprijzen</a></li>
                 <?php endif ?>
                 <?php if (user_can('vault.view')) : ?>
                 <li class="nav-item"><a class="nav-link <?= url_is('apparaten*') ? 'active' : '' ?>" href="<?= site_url('apparaten') ?>">Apparaten</a></li>

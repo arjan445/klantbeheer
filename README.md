@@ -6,6 +6,7 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
 - **Diensten**: de catalogus, bijvoorbeeld Microsoft 365 per gebruiker, webhosting per domein, domeinnaam, Elementor Pro of andere plugins. Per dienst leg je de verkoopprijs, inkoopprijs, leverancier en periode vast.
 - **Abonnementen**: welke klant welke dienst afneemt, hoeveel, voor welk domein of welke tenant, en wanneer de volgende factuur moet komen. Per abonnement kun je een afwijkende prijs instellen.
 - **Facturatie**: een overzicht van wat de komende *x* dagen verlengd wordt, gegroepeerd per klant. Met één klik maak je een **conceptfactuur in Moneybird**, met per regel de periode erbij. Daarna schuift het abonnement automatisch een periode op. Je kunt ook handmatig als gefactureerd markeren.
+- **Kostprijzen**: kostenpools tellen je inkoopfacturen en bonnetjes uit Moneybird op, per categorie (bijv. Plesk-licentie + VPS + Imunify), over de laatste 12 maanden. Dat bedrag wordt verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht. De uitkomst wordt automatisch de inkoopprijs van die diensten.
 - **Dashboard**: omzet en marge per jaar, uitgesplitst per soort dienst, plus de verlengingen van de komende 60 dagen.
 - **Kluis**: apparaten (camera's, recorders, switches, AP's, routers), IP-adressen, MAC- en serienummers en **wachtwoorden per klant en locatie**.
   - Wachtwoorden en geheime notities (zoals de Hik-Connect-verificatiecode of de wifi-sleutel) worden **versleuteld** opgeslagen met AES-256 en HMAC.
@@ -36,7 +37,7 @@ Zet de webroot van de (sub)domein op de map `public/`.
 
 ### Moneybird
 
-1. Ga in Moneybird naar **Instellingen › Ontwikkelaars › Persoonlijke API-token**. Geef het token de rechten *Verkoopfacturen*, *Contacten* en *Instellingen*.
+1. Ga in Moneybird naar **Instellingen › Ontwikkelaars › Persoonlijke API-token**. Geef het token de rechten *Verkoopfacturen*, *Contacten*, *Documenten* (voor de inkoop bij Kostprijzen) en *Instellingen*.
 2. Zet in `.env` de waarden `moneybird.token` en `moneybird.administrationId`. Het administratie-ID is het getal in de URL: `moneybird.com/<ID>/…`.
 3. Open in de app **Beheer › Moneybird**:
    - Je ziet de btw-tarieven. Zet het ID van 21% in `moneybird.taxRateId`.
@@ -53,6 +54,21 @@ Vul de `email.*`-instellingen in `.env` in en voeg een cronjob toe:
 ```
 
 Elke maandag krijgen de admins dan een mail met wat er binnenkort gefactureerd moet worden.
+
+### Kostprijzen elke nacht bijwerken (optioneel)
+
+```
+15 3 * * *  cd /pad/naar/klantbeheer && php spark klantbeheer:kosten
+```
+
+Je kunt ook op **Kostprijzen** op *Ophalen uit Moneybird* klikken.
+
+## Hoe kostprijzen werken
+
+1. Je maakt een kostenpool aan, bijvoorbeeld **Hostingplatform**, en vinkt de Moneybird-categorieën aan waarop je de inkoop boekt.
+2. De app telt de regels op die op die categorieën geboekt zijn (excl. btw), uit inkoopfacturen en bonnetjes van de laatste *N* maanden. Dat wordt omgerekend naar een jaarbedrag, vermenigvuldigd met het toerekenpercentage, plus eventuele handmatige extra kosten.
+3. Die jaarkosten worden verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht. Als Pro gewicht 2 heeft, draagt een Pro-pakket dubbel zoveel als een Basis-pakket.
+4. De kostprijs per stuk wordt opgeslagen als inkoopprijs van de dienst. Komen er klanten bij, dan daalt de kostprijs per stuk vanzelf.
 
 ## Hoe facturatie werkt
 

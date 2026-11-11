@@ -2,6 +2,7 @@
 
 use App\Controllers\Account;
 use App\Controllers\Billing;
+use App\Controllers\CostPools;
 use App\Controllers\Customers;
 use App\Controllers\Dashboard;
 use App\Controllers\Devices;
@@ -45,6 +46,15 @@ $routes->group('diensten', ['filter' => 'can:billing.view'], static function ($r
     $routes->match(['GET', 'POST'], 'nieuw', [Services::class, 'create'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [Services::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Services::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
+});
+
+// Kostprijzen (kostenpools uit Moneybird-inkoop)
+$routes->group('kostprijzen', ['filter' => 'can:billing.view'], static function ($routes) {
+    $routes->get('/', [CostPools::class, 'index']);
+    $routes->post('ophalen', [CostPools::class, 'sync'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], 'nieuw', [CostPools::class, 'create'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], '(:num)/bewerken', [CostPools::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/verwijderen', [CostPools::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
 });
 
 // Abonnementen

@@ -16,7 +16,7 @@
             <td class="fw-semibold"><?= esc($s['name']) ?><?= $s['active'] ? '' : ' <span class="badge text-bg-secondary">inactief</span>' ?></td>
             <td><span class="badge badge-type"><?= esc(service_type_label($s['type'])) ?></span></td>
             <td class="text-end"><?= euro($s['price']) ?></td>
-            <td class="text-end"><?= $s['purchase_price'] !== null ? euro($s['purchase_price']) : '—' ?></td>
+            <td class="text-end"><?= $s['purchase_price'] !== null ? euro($s['purchase_price']) : '—' ?><?php if ($s['cost_pool_id']) : ?><div class="small text-muted" title="Automatisch uit kostenpool"><i class="bi bi-diagram-3"></i> <?= esc($pools[$s['cost_pool_id']] ?? '') ?></div><?php endif ?></td>
             <td class="text-end"><?= $s['purchase_price'] !== null ? euro($s['price'] - $s['purchase_price']) : '—' ?></td>
             <td class="small"><?= esc($s['unit']) ?> / <?= esc(interval_label((int) $s['interval_months'])) ?></td>
             <td class="small"><?= esc($s['supplier']) ?></td>

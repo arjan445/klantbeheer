@@ -118,6 +118,8 @@ class Subscriptions extends BaseController
             model(SubscriptionModel::class)->insert($post);
         }
 
+        \App\Libraries\CostPools::recalculate();
+
         $to = $this->request->getPost('return') === 'customer'
             ? site_url('klanten/' . $post['customer_id'])
             : site_url('abonnementen');
@@ -132,6 +134,7 @@ class Subscriptions extends BaseController
             return $this->back('Er is al gefactureerd op dit abonnement. Zet het op "opgezegd" in plaats van te verwijderen.', 'error');
         }
         model(SubscriptionModel::class)->delete($id);
+        \App\Libraries\CostPools::recalculate();
 
         return $this->back('Abonnement verwijderd.', 'message', site_url('klanten/' . $sub['customer_id']));
     }
