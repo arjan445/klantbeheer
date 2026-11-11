@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\CustomerModel;
 use App\Models\DomainModel;
+use App\Models\ServiceModel;
 use App\Models\SubscriptionModel;
 
 /**
@@ -133,6 +134,104 @@ class Domains extends BaseController
         return $this->back('Domein opgeslagen.', 'message', $this->request->getGet('klant') || $existing === null
             ? site_url('klanten/' . $post['customer_id'])
             : site_url('domeinen'));
+    }
+
+    /**
+     * Snel invoeren: per regel een domein met registratie, hosting en/of een
+     * extra dienst. Maakt domeinen en abonnementen in één keer aan.
+     */
+    public function quick()
+    {
+        $services = model(ServiceModel::class)->where('active', 1)->orderBy('type')->orderBy('name')->findAll();
+        $data = [
+            'customers' => model(CustomerModel::class)->where('active', 1)->orderBy('name')->findAll(),
+            'services'  => $services,
+            'byType'    => static fn (string $type) => array_values(array_filter($services, static fn ($s) => $s['type'] === $type)),
+            'defaults'  => [
+                'customer_id' => $this->request->getGet('klant'),
+                'reg'         => $this->session->get('quick_reg'),
+                'host'        => $this->session->get('quick_host'),
+                'extra'       => $this->session->get('quick_extra'),
+            ],
+            'result'    => null,
+        ];
+
+        if (! $this->request->is('post')) {
+            return $this->page('domains/quick', $data, 'Snel invoeren');
+        }
+
+        $regService   = (int) $this->request->getPost('reg_service');
+        $hostService  = (int) $this->request->getPost('host_service');
+        $extraService = (int) $this->request->getPost('extra_service');
+        $this->session->set(['quick_reg' => $regService, 'quick_host' => $hostService, 'quick_extra' => $extraService]);
+
+        $serviceById = array_column($services, null, 'id');
+        $rows        = $this->request->getPost('rows') ?? [];
+        $domains     = model(DomainModel::class);
+        $subs        = model(SubscriptionModel::class);
+        $created     = ['domains' => 0, 'subs' => 0];
+        $messages    = [];
+
+        foreach ((array) $rows as $row) {
+            $name = DomainModel::normalize($row['domain'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $customerId = (int) ($row['customer_id'] ?? 0);
+            if ($customerId === 0 || model(CustomerModel::class)->find($customerId) === null) {
+                $messages[] = $name . ': geen klant gekozen, overgeslagen.';
+                continue;
+            }
+            if (! DomainModel::isValid($name)) {
+                $messages[] = $name . ': geen geldige domeinnaam, overgeslagen.';
+                continue;
+            }
+
+            $isNew  = $domains->where('name', $name)->countAllResults() === 0;
+            $domain = $domains->findOrCreate($name, $customerId);
+            $created['domains'] += $isNew ? 1 : 0;
+            if (! $isNew && (int) $domain['customer_id'] !== $customerId) {
+                $messages[] = $name . ': bestond al bij een andere klant; abonnementen zijn aan die klant gekoppeld.';
+                $customerId = (int) $domain['customer_id'];
+            }
+            if (! empty($row['registrar']) && empty($row['reg'])) {
+                $domains->update($domain['id'], ['registrar' => mb_substr(trim($row['registrar']), 0, 100)]);
+            }
+
+            $next = ! empty($row['next']) && strtotime($row['next']) ? date('Y-m-d', strtotime($row['next'])) : date('Y-m-d');
+
+            foreach (['reg' => $regService, 'host' => $hostService, 'extra' => $extraService] as $key => $serviceId) {
+                if (empty($row[$key]) || ! isset($serviceById[$serviceId])) {
+                    continue;
+                }
+                $exists = $subs->where('domain_id', $domain['id'])->where('service_id', $serviceId)
+                    ->where('status', 'active')->countAllResults();
+                if ($exists) {
+                    $messages[] = $name . ': ' . $serviceById[$serviceId]['name'] . ' stond er al, niet dubbel aangemaakt.';
+                    continue;
+                }
+                $subs->insert([
+                    'customer_id'       => $customerId,
+                    'service_id'        => $serviceId,
+                    'domain_id'         => $domain['id'],
+                    'quantity'          => 1,
+                    'interval_months'   => (int) $serviceById[$serviceId]['interval_months'],
+                    'start_date'        => $next,
+                    'next_invoice_date' => $next,
+                    'status'            => 'active',
+                ]);
+                $created['subs']++;
+            }
+        }
+
+        \App\Libraries\CostPools::recalculate();
+
+        $msg = sprintf('%d domein(en) en %d abonnement(en) aangemaakt.', $created['domains'], $created['subs']);
+        if ($messages !== []) {
+            $this->session->setFlashdata('quick_notes', $messages);
+        }
+
+        return $this->back($msg, 'message', site_url('domeinen/snel' . ($this->request->getPost('default_customer') ? '?klant=' . (int) $this->request->getPost('default_customer') : '')));
     }
 
     public function delete($id)

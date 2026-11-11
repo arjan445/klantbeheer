@@ -83,7 +83,10 @@
 <?php if (isset($domains)) : ?>
 <div class="tab-pane fade" id="t-domains">
     <?php if (user_can('billing.manage')) : ?>
-    <div class="mb-3"><a href="<?= site_url('domeinen/nieuw?klant=' . $c['id']) ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Domein toevoegen</a></div>
+    <div class="mb-3 d-flex gap-2">
+        <a href="<?= site_url('domeinen/snel?klant=' . $c['id']) ?>" class="btn btn-sm btn-primary"><i class="bi bi-lightning-charge"></i> Snel invoeren</a>
+        <a href="<?= site_url('domeinen/nieuw?klant=' . $c['id']) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-plus-lg"></i> Los domein toevoegen</a>
+    </div>
     <?php endif ?>
     <?= view('domains/_table', ['domains' => $domains, 'showCustomer' => false]) ?>
 </div>

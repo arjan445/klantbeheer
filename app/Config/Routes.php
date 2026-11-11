@@ -69,6 +69,7 @@ $routes->group('abonnementen', ['filter' => 'can:billing.view'], static function
 $routes->group('domeinen', ['filter' => 'can:billing.view'], static function ($routes) {
     $routes->get('/', [Domains::class, 'index']);
     $routes->match(['GET', 'POST'], 'nieuw', [Domains::class, 'create'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], 'snel', [Domains::class, 'quick'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [Domains::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Domains::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
 });

@@ -5,7 +5,10 @@
         <div class="text-muted small">Per domein: is het bij jou geregistreerd, wordt het bij jou gehost, en wat hangt er nog meer aan?</div>
     </div>
     <?php if (user_can('billing.manage')) : ?>
-        <a href="<?= site_url('domeinen/nieuw') ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nieuw domein</a>
+        <div class="d-flex gap-2">
+            <a href="<?= site_url('domeinen/nieuw') ?>" class="btn btn-outline-secondary"><i class="bi bi-plus-lg"></i> Nieuw domein</a>
+            <a href="<?= site_url('domeinen/snel') ?>" class="btn btn-primary"><i class="bi bi-lightning-charge"></i> Snel invoeren</a>
+        </div>
     <?php endif ?>
 </div>
 <div class="d-flex gap-2 mb-3 flex-wrap">
