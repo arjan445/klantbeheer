@@ -39,6 +39,9 @@
     <?php if (isset($subscriptions)) : ?>
     <li class="nav-item"><button class="nav-link <?= isset($devices) ? '' : 'active' ?>" data-bs-toggle="tab" data-bs-target="#t-subs">Abonnementen <span class="badge text-bg-light"><?= count($subscriptions) ?></span></button></li>
     <?php endif ?>
+    <?php if (isset($domains)) : ?>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-domains">Domeinen <span class="badge text-bg-light"><?= count($domains) ?></span></button></li>
+    <?php endif ?>
     <li class="nav-item"><button class="nav-link <?= isset($devices) || isset($subscriptions) ? '' : 'active' ?>" data-bs-toggle="tab" data-bs-target="#t-sites">Locaties <span class="badge text-bg-light"><?= count($sites) ?></span></button></li>
     <?php if (isset($invoices)) : ?>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-inv">Gefactureerd</button></li>
@@ -74,6 +77,15 @@
     <div class="mb-3"><a href="<?= site_url('abonnementen/nieuw?klant=' . $c['id']) ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Abonnement toevoegen</a></div>
     <?php endif ?>
     <?= view('subscriptions/_table', ['subscriptions' => $subscriptions, 'showCustomer' => false]) ?>
+</div>
+<?php endif ?>
+
+<?php if (isset($domains)) : ?>
+<div class="tab-pane fade" id="t-domains">
+    <?php if (user_can('billing.manage')) : ?>
+    <div class="mb-3"><a href="<?= site_url('domeinen/nieuw?klant=' . $c['id']) ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Domein toevoegen</a></div>
+    <?php endif ?>
+    <?= view('domains/_table', ['domains' => $domains, 'showCustomer' => false]) ?>
 </div>
 <?php endif ?>
 

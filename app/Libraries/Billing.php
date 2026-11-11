@@ -69,9 +69,10 @@ class Billing
     public static function lineDescription(array $sub): string
     {
         [$start, $end] = self::period($sub);
-        $text = $sub['service_name'];
-        if (! empty($sub['label'])) {
-            $text .= ' - ' . $sub['label'];
+        $text  = $sub['service_name'];
+        $extra = array_filter([$sub['domain_name'] ?? null, $sub['label'] ?? null]);
+        if ($extra !== []) {
+            $text .= ' - ' . implode(' ', $extra);
         }
 
         return $text . ' (' . datum($start) . ' t/m ' . datum($end) . ')';

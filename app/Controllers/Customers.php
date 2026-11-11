@@ -53,6 +53,7 @@ class Customers extends BaseController
                 static fn ($s) => $s['status'] === 'active' ? BillingLib::yearly($s) : 0,
                 $data['subscriptions']
             ));
+            $data['domains']  = Domains::overview((int) $id);
             $data['invoices'] = model(InvoiceLineModel::class)->where('customer_id', $id)
                 ->orderBy('created_at', 'DESC')->limit(100)->findAll();
         }
@@ -125,6 +126,7 @@ class Customers extends BaseController
         }
 
         model(SiteModel::class)->where('customer_id', $id)->delete();
+        model(\App\Models\DomainModel::class)->where('customer_id', $id)->delete();
         model(CustomerModel::class)->delete($id);
 
         return $this->back('Klant ' . $customer['name'] . ' verwijderd.', 'message', site_url('klanten'));

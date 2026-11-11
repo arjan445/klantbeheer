@@ -12,7 +12,7 @@ class Search extends BaseController
     public function index()
     {
         $q = trim((string) $this->request->getGet('q'));
-        $data = ['q' => $q, 'customers' => [], 'sites' => [], 'devices' => [], 'subscriptions' => []];
+        $data = ['q' => $q, 'customers' => [], 'sites' => [], 'devices' => [], 'subscriptions' => [], 'domains' => []];
 
         if (mb_strlen($q) >= 2) {
             $data['customers'] = model(CustomerModel::class)
@@ -36,13 +36,14 @@ class Search extends BaseController
 
             if (user_can('billing.view')) {
                 $data['subscriptions'] = model(SubscriptionModel::class)->withDetails()
-                    ->groupStart()->like('subscriptions.label', $q)->orLike('services.name', $q)->groupEnd()
+                    ->groupStart()->like('subscriptions.label', $q)->orLike('services.name', $q)->orLike('domains.name', $q)->groupEnd()
                     ->findAll(100);
+                $data['domains'] = array_values(array_filter(Domains::overview(), static fn ($d) => str_contains($d['name'], mb_strtolower($q))));
             }
         }
 
         // Precies één klant gevonden en verder niets: meteen openen
-        $hits = count($data['customers']) + count($data['sites']) + count($data['devices']) + count($data['subscriptions']);
+        $hits = count($data['customers']) + count($data['sites']) + count($data['devices']) + count($data['subscriptions']) + count($data['domains']);
         if ($hits === 1 && count($data['customers']) === 1) {
             return redirect()->to(site_url('klanten/' . $data['customers'][0]['id']));
         }

@@ -29,9 +29,16 @@
                 <?php endforeach ?>
             </select>
         </div>
-        <div class="col-md-6"><label class="form-label">Omschrijving</label>
-            <input name="label" id="label" class="form-control" value="<?= esc($s['label'] ?? '') ?>" placeholder="Domein (klant.nl), tenant of website">
-            <div class="form-text">Komt op de factuur, bijv. "klant.nl".</div>
+        <div class="col-md-3"><label class="form-label">Domein</label>
+            <input name="domain_name" id="domain_name" class="form-control mono" list="domain-list" autocomplete="off" value="<?= esc($s['domain_name'] ?? '') ?>" placeholder="klant.nl">
+            <datalist id="domain-list">
+                <?php foreach ($domains as $dm) : ?><option value="<?= esc($dm['name'], 'attr') ?>" data-customer="<?= $dm['customer_id'] ?>"></option><?php endforeach ?>
+            </datalist>
+            <div class="form-text">Bestaand domein kiezen of een nieuw intikken.</div>
+        </div>
+        <div class="col-md-3"><label class="form-label">Extra omschrijving</label>
+            <input name="label" id="label" class="form-control" value="<?= esc($s['label'] ?? '') ?>" placeholder="Bijv. tenant, webshop">
+            <div class="form-text">Optioneel; komt samen met het domein op de factuur.</div>
         </div>
         <div class="col-md-2"><label class="form-label">Aantal *</label><input name="quantity" class="form-control" required value="<?= esc(isset($s['quantity']) ? aantal($s['quantity']) : '1') ?>"><div class="form-text" id="unit-hint"></div></div>
         <div class="col-md-3"><label class="form-label">Afwijkende prijs</label><div class="input-group"><span class="input-group-text">€</span><input name="price" id="price" class="form-control" value="<?= esc($s['price'] ?? '') ?>"></div><div class="form-text">Leeg = prijs van de dienst.</div></div>
@@ -80,5 +87,16 @@
     }
     svc.addEventListener('change', () => update(false));
     update(true);
+
+    // Domeinsuggesties alleen van de gekozen klant
+    const cust = document.getElementById('customer_id');
+    const all = Array.from(document.querySelectorAll('#domain-list option')).map(o => o.cloneNode());
+    function filterDomains() {
+        const list = document.getElementById('domain-list');
+        list.innerHTML = '';
+        all.filter(o => !cust.value || o.dataset.customer === cust.value).forEach(o => list.appendChild(o.cloneNode()));
+    }
+    cust.addEventListener('change', filterDomains);
+    filterDomains();
 })();
 </script>

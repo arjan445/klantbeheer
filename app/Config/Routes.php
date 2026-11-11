@@ -6,6 +6,7 @@ use App\Controllers\CostPools;
 use App\Controllers\Customers;
 use App\Controllers\Dashboard;
 use App\Controllers\Devices;
+use App\Controllers\Domains;
 use App\Controllers\Search;
 use App\Controllers\Services;
 use App\Controllers\Settings;
@@ -62,6 +63,14 @@ $routes->group('abonnementen', ['filter' => 'can:billing.view'], static function
     $routes->match(['GET', 'POST'], 'nieuw', [Subscriptions::class, 'create'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [Subscriptions::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Subscriptions::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
+});
+
+// Domeinen
+$routes->group('domeinen', ['filter' => 'can:billing.view'], static function ($routes) {
+    $routes->get('/', [Domains::class, 'index']);
+    $routes->match(['GET', 'POST'], 'nieuw', [Domains::class, 'create'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], '(:num)/bewerken', [Domains::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('(:num)/verwijderen', [Domains::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
 });
 
 // Facturatie

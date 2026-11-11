@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\CustomerModel;
+use App\Models\DomainModel;
 use App\Models\InvoiceLineModel;
 use App\Models\ServiceModel;
 use App\Models\SiteModel;
@@ -57,6 +58,13 @@ class Subscriptions extends BaseController
             'next_invoice_date' => date('Y-m-d'),
             'status'            => 'active',
         ];
+        if ($domainId = $this->request->getGet('domein')) {
+            $domain = model(DomainModel::class)->find($domainId);
+            if ($domain) {
+                $defaults['domain_name'] = $domain['name'];
+                $defaults['customer_id'] = $domain['customer_id'];
+            }
+        }
 
         return $this->form(null, $defaults);
     }
@@ -64,6 +72,7 @@ class Subscriptions extends BaseController
     public function edit($id)
     {
         $sub = $this->findOr404(SubscriptionModel::class, $id);
+        $sub['domain_name'] = $sub['domain_id'] ? (model(DomainModel::class)->find($sub['domain_id'])['name'] ?? '') : '';
 
         return $this->form($sub, $sub);
     }
@@ -77,6 +86,7 @@ class Subscriptions extends BaseController
             'customers' => model(CustomerModel::class)->where('active', 1)->orderBy('name')->findAll(),
             'services'  => model(ServiceModel::class)->where('active', 1)->orWhere('id', $values['service_id'] ?? 0)->orderBy('type')->orderBy('name')->findAll(),
             'sites'     => model(SiteModel::class)->orderBy('name')->findAll(),
+            'domains'   => model(DomainModel::class)->orderBy('name')->findAll(),
             'history'   => $existing ? model(InvoiceLineModel::class)->where('subscription_id', $existing['id'])->orderBy('period_start', 'DESC')->findAll() : [],
         ];
 
@@ -101,8 +111,21 @@ class Subscriptions extends BaseController
             }
         }
 
+        // Domein: opzoeken of aanmaken
+        $domainName = DomainModel::normalize($this->request->getPost('domain_name'));
+        $post['domain_id'] = null;
+        if ($valid && $domainName !== '') {
+            $domain = model(DomainModel::class)->findOrCreate($domainName, (int) $post['customer_id']);
+            if ($domain === null) {
+                $valid = false;
+                $this->session->setFlashdata('error', '"' . $domainName . '" lijkt geen geldige domeinnaam (bijv. klant.nl).');
+            } else {
+                $post['domain_id'] = $domain['id'];
+            }
+        }
+
         if (! $valid) {
-            $data['sub'] = $post + ['id' => $existing['id'] ?? null];
+            $data['sub'] = $post + ['id' => $existing['id'] ?? null, 'domain_name' => $domainName];
             $data['validation'] = true;
 
             return $this->page('subscriptions/form', $data, $title);

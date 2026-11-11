@@ -30,6 +30,7 @@
                 <?php endif ?>
                 <?php if (user_can('billing.view')) : ?>
                 <li class="nav-item"><a class="nav-link <?= url_is('abonnementen*') ? 'active' : '' ?>" href="<?= site_url('abonnementen') ?>">Abonnementen</a></li>
+                <li class="nav-item"><a class="nav-link <?= url_is('domeinen*') ? 'active' : '' ?>" href="<?= site_url('domeinen') ?>">Domeinen</a></li>
                 <li class="nav-item"><a class="nav-link <?= url_is('facturatie*') ? 'active' : '' ?>" href="<?= site_url('facturatie') ?>">Facturatie</a></li>
                 <li class="nav-item"><a class="nav-link <?= url_is('diensten*') ? 'active' : '' ?>" href="<?= site_url('diensten') ?>">Diensten</a></li>
                 <li class="nav-item"><a class="nav-link <?= url_is('kostprijzen*') ? 'active' : '' ?>" href="<?= site_url('kostprijzen') ?>">Kostprijzen</a></li>

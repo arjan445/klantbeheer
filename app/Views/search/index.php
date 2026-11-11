@@ -1,7 +1,7 @@
 <h3 class="mb-3">Zoeken<?= $q !== '' ? ': <span class="text-muted">' . esc($q) . '</span>' : '' ?></h3>
 <?php if (mb_strlen($q) < 2) : ?>
     <p class="text-muted">Typ minstens 2 tekens: klantnaam, plaats, IP-adres, serienummer, MAC-adres of domeinnaam.</p>
-<?php elseif (! $customers && ! $sites && ! $devices && ! $subscriptions) : ?>
+<?php elseif (! $customers && ! $sites && ! $devices && ! $subscriptions && ! $domains) : ?>
     <p class="text-muted">Niets gevonden.</p>
 <?php endif ?>
 
@@ -24,6 +24,12 @@
 <?php if ($devices) : ?>
 <div class="card mb-3"><div class="card-header">Apparaten</div><div class="card-body">
     <?= view('devices/_table', ['devices' => $devices, 'showCustomer' => true]) ?>
+</div></div>
+<?php endif ?>
+
+<?php if ($domains) : ?>
+<div class="card mb-3"><div class="card-header">Domeinen</div><div class="card-body">
+    <?= view('domains/_table', ['domains' => $domains, 'showCustomer' => true]) ?>
 </div></div>
 <?php endif ?>
 
