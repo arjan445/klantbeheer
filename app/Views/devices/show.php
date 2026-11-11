@@ -14,8 +14,8 @@
         <dl class="row mb-0">
             <dt class="col-sm-4">Soort</dt><dd class="col-sm-8"><?= esc(device_type_label($d['type'])) ?></dd>
             <dt class="col-sm-4">Klant</dt><dd class="col-sm-8"><a href="<?= site_url('klanten/' . $d['customer_id']) ?>"><?= esc($customer['name'] ?? '') ?></a></dd>
-            <dt class="col-sm-4">Locatie</dt><dd class="col-sm-8"><?= esc($site['name'] ?? '—') ?></dd>
-            <?php foreach (['brand' => 'Merk', 'model' => 'Model', 'serial' => 'Serienummer', 'firmware' => 'Firmware', 'mac' => 'MAC-adres'] as $f => $label) : ?>
+            <dt class="col-sm-4">Locatie</dt><dd class="col-sm-8"><?= esc($site['name'] ?? '—') ?><?= ! empty($d['room']) ? ' · ' . esc($d['room']) : '' ?></dd>
+            <?php foreach (['brand' => 'Merk', 'model' => 'Model', 'serial' => device_is_sensor($d['type']) ? 'Device-ID' : 'Serienummer', 'firmware' => 'Firmware', 'mac' => 'MAC-adres'] as $f => $label) : ?>
                 <?php if ($d[$f]) : ?><dt class="col-sm-4"><?= $label ?></dt><dd class="col-sm-8 <?= in_array($f, ['serial', 'mac'], true) ? 'mono' : '' ?>"><?= esc($d[$f]) ?></dd><?php endif ?>
             <?php endforeach ?>
             <?php if ($d['ip']) : ?><dt class="col-sm-4">IP-adres</dt><dd class="col-sm-8 mono"><?= esc($d['ip']) ?><?= $d['port'] ? ':' . esc($d['port']) : '' ?> <button class="btn btn-link btn-sm p-0" data-copy data-copy-value="<?= esc($d['ip'], 'attr') ?>"><i class="bi bi-clipboard"></i></button></dd><?php endif ?>

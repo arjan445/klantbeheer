@@ -15,3 +15,67 @@ body { background: #f4f5f9; }
 .nav-tabs .nav-link { color: #444; }
 .nav-tabs .nav-link.active { color: var(--kb-blue); font-weight: 600; }
 .row-overdue td { background: #fff4f4 !important; }
+
+/* ---------- Offerte-editor: regels als grid, op mobiel als kaartjes ---------- */
+.ql-head, .ql { display: grid; grid-template-columns: 24px 1fr 80px 110px 110px 105px 60px 64px; gap: .5rem; align-items: start; }
+.ql-head { padding: 0 0 .25rem; border-bottom: 1px solid #dee2e6; }
+.ql { padding: .5rem 0; border-bottom: 1px solid #eee; }
+.ql-handle { cursor: grab; padding-top: .3rem; }
+.ql-desc textarea { resize: none; overflow: hidden; min-height: 31px; }
+.ql-num { margin: 0; }
+.ql-label { display: none; }
+.ql-total, .ql-margin { padding-top: .3rem; }
+.ql-text .ql-desc textarea { font-weight: 600; }
+
+@media (max-width: 767.98px) {
+    .kb-main { padding-left: .5rem; padding-right: .5rem; }
+    .ql { grid-template-columns: 1fr 1fr 1fr; grid-template-areas:
+            "desc desc desc"
+            "qty  cost sell"
+            "total margin actions";
+          background: #fff; border: 1px solid #e3e5ec; border-radius: .5rem; padding: .6rem; margin-bottom: .5rem; }
+    .ql-handle { display: none; }
+    .ql-desc { grid-area: desc; }
+    .ql-qty { grid-area: qty; } .ql-cost { grid-area: cost; } .ql-sell { grid-area: sell; }
+    .ql-total { grid-area: total; text-align: left !important; }
+    .ql-margin { grid-area: margin; text-align: left !important; }
+    .ql-actions { grid-area: actions; }
+    .ql-label { display: block; font-size: .7rem; color: #6c757d; text-align: left; }
+    .ql-text { grid-template-areas: "desc desc actions"; }
+    .ql input, .ql textarea { font-size: 16px; } /* voorkomt inzoomen op iOS */
+    .quote-actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; background: #fff; padding: .6rem .75rem calc(.6rem + env(safe-area-inset-bottom));
+                     border-top: 1px solid #dee2e6; box-shadow: 0 -2px 8px rgba(0,0,0,.08); }
+    body:has(.quote-actions) { padding-bottom: 130px; }
+    .quote-actions .btn { flex: 1 1 auto; }
+    #results { max-height: 60vh !important; }
+    h3 { font-size: 1.35rem; }
+    /* Brede tabellen horizontaal laten scrollen i.p.v. de pagina op te rekken */
+    .card-body { overflow-x: auto; }
+    .table { font-size: .9rem; }
+}
+
+/* ---------- Apparaat toevoegen ---------- */
+.type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: .4rem; }
+.type-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; min-height: 64px;
+            padding: .4rem .3rem; border: 1px solid #d9dce5; border-radius: .5rem; background: #fff; color: #333; font-size: .78rem; line-height: 1.15; text-align: center; }
+.type-btn i { font-size: 1.25rem; color: var(--kb-blue); }
+.type-btn.active { border-color: var(--kb-blue); background: var(--kb-blue); color: #fff; }
+.type-btn.active i { color: #fff; }
+.device-actions { margin-top: .5rem; }
+
+/* Apparatenlijst als kaartjes op mobiel */
+.dev-cards { display: none; }
+.dev-card { border: 1px solid #e3e5ec; border-radius: .5rem; padding: .6rem .7rem; margin-bottom: .5rem; background: #fff; }
+.dev-card .dev-title { font-weight: 600; }
+.dev-card .dev-row { display: flex; align-items: center; gap: .4rem; font-size: .9rem; margin-top: .2rem; }
+.dev-card .dev-row .label { color: #6c757d; min-width: 64px; font-size: .8rem; }
+
+@media (max-width: 767.98px) {
+    .type-grid { grid-template-columns: repeat(3, 1fr); }
+    .device-actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; background: #fff; margin: 0;
+                      padding: .6rem .75rem calc(.6rem + env(safe-area-inset-bottom)); border-top: 1px solid #dee2e6; box-shadow: 0 -2px 8px rgba(0,0,0,.08); }
+    body:has(.device-actions) { padding-bottom: 90px; }
+    #device-form input, #device-form select, #device-form textarea { font-size: 16px; }
+    .dev-table { display: none; }
+    .dev-cards { display: block; }
+}

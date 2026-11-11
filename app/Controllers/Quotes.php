@@ -177,14 +177,22 @@ class Quotes extends BaseController
 
         $msg = 'Offerte opgeslagen.' . ($saveToCatalog ? ' ' . count($saveToCatalog) . ' los(se) product(en) bewaard in de catalogus.' : '');
 
-        if (($post['after'] ?? '') === 'moneybird') {
-            return $this->toMoneybird($quote['id']);
+        if (in_array($post['after'] ?? '', ['moneybird', 'moneybird_new'], true)) {
+            return $this->sendToMoneybird((int) $quote['id'], $post['after'] === 'moneybird_new');
         }
 
         return $this->back($msg, 'message', site_url('offertes/' . $quote['id']));
     }
 
     public function toMoneybird($id)
+    {
+        return $this->sendToMoneybird((int) $id, (bool) $this->request->getPost('new_estimate'));
+    }
+
+    /**
+     * Offerte naar Moneybird: bestaande gekoppelde offerte bijwerken, of een nieuwe aanmaken.
+     */
+    private function sendToMoneybird(int $id, bool $forceNew)
     {
         $quote    = $this->findOr404(QuoteModel::class, $id);
         $customer = model(CustomerModel::class)->find($quote['customer_id']);
@@ -202,15 +210,46 @@ class Quotes extends BaseController
             ? ['description' => $l['description'], 'text' => true]
             : ['description' => $l['description'], 'price' => $l['sell_price'], 'amount' => $l['quantity'], 'tax_rate_id' => $tax], $lines);
 
+        $mb = new Moneybird();
+
         try {
-            $estimate = (new Moneybird())->createEstimate($customer['moneybird_contact_id'], $details, $quote['title']);
+            $existing = ! $forceNew && $quote['moneybird_estimate_id'] ? $mb->getEstimate($quote['moneybird_estimate_id']) : null;
+            if ($existing !== null) {
+                $estimate = $mb->updateEstimate($existing, $customer['moneybird_contact_id'], $details, $quote['title']);
+                $msg      = 'Offerte ' . ($estimate['estimate_id'] ?? '') . ' in Moneybird bijgewerkt (zelfde nummer, oude regels vervangen).';
+                if (($existing['state'] ?? 'draft') !== 'draft') {
+                    $msg .= ' Let op: deze offerte was al ' . self::mbState($existing['state']) . '; verstuur hem zo nodig opnieuw.';
+                }
+            } else {
+                $estimate = $mb->createEstimate($customer['moneybird_contact_id'], $details, $quote['title']);
+                $msg      = $quote['moneybird_estimate_id'] && ! $forceNew
+                    ? 'De gekoppelde offerte bestond niet meer in Moneybird; er is een nieuwe conceptofferte aangemaakt.'
+                    : 'Conceptofferte aangemaakt in Moneybird. Controleer en verstuur hem daar.';
+            }
         } catch (Throwable $e) {
             return $this->back('Moneybird: ' . $e->getMessage(), 'error', site_url('offertes/' . $id));
         }
 
-        model(QuoteModel::class)->update($id, ['status' => 'moneybird', 'moneybird_estimate_id' => (string) ($estimate['id'] ?? '')]);
+        model(QuoteModel::class)->update($id, [
+            'status'                => in_array($quote['status'], ['geaccepteerd', 'afgewezen'], true) ? $quote['status'] : 'moneybird',
+            'moneybird_estimate_id' => (string) ($estimate['id'] ?? $quote['moneybird_estimate_id']),
+            'moneybird_number'      => $estimate['estimate_id'] ?? null,
+        ]);
 
-        return $this->back('Conceptofferte aangemaakt in Moneybird. Controleer en verstuur hem daar.', 'message', site_url('offertes/' . $id));
+        return $this->back($msg, 'message', site_url('offertes/' . $id));
+    }
+
+    private static function mbState(string $state): string
+    {
+        return match ($state) {
+            'open'    => 'verstuurd',
+            'late'    => 'verlopen',
+            'accepted' => 'geaccepteerd',
+            'rejected' => 'afgewezen',
+            'billed'  => 'gefactureerd',
+            'archived' => 'gearchiveerd',
+            default   => $state,
+        };
     }
 
     public function status($id)

@@ -60,7 +60,7 @@
 <?php if (isset($devices)) : ?>
 <div class="tab-pane fade show active" id="t-devices">
     <?php if (user_can('vault.manage')) : ?>
-    <div class="mb-3"><a href="<?= site_url('apparaten/nieuw?klant=' . $c['id']) ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Apparaat / wachtwoord toevoegen</a></div>
+    <div class="mb-3"><a href="<?= site_url('apparaten/nieuw?klant=' . $c['id'] . (count($sites) === 1 ? '&locatie=' . $sites[0]['id'] : '')) ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Apparaat toevoegen</a></div>
     <?php endif ?>
     <?php if ($devices === []) : ?>
         <p class="text-muted mb-0">Nog geen apparaten of wachtwoorden bij deze klant.</p>
@@ -71,7 +71,8 @@
         foreach ($devices as $d) { $groups[$d['site_id'] ?? 0][] = $d; }
         ?>
         <?php foreach ($groups as $siteId => $list) : ?>
-            <h6 class="mt-2"><i class="bi bi-geo-alt"></i> <?= esc($siteId ? ($siteNames[$siteId] ?? 'Onbekende locatie') : 'Geen locatie') ?></h6>
+            <h6 class="mt-3 d-flex justify-content-between align-items-center"><span><i class="bi bi-geo-alt"></i> <?= esc($siteId ? ($siteNames[$siteId] ?? 'Onbekende locatie') : 'Geen locatie') ?> <span class="badge text-bg-light"><?= count($list) ?></span></span>
+                <?php if (user_can('vault.manage')) : ?><a href="<?= site_url('apparaten/nieuw?klant=' . $c['id'] . ($siteId ? '&locatie=' . $siteId : '')) ?>" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-plus-lg"></i> Hier toevoegen</a><?php endif ?></h6>
             <?= view('devices/_table', ['devices' => $list, 'siteNames' => $siteNames]) ?>
         <?php endforeach ?>
     <?php endif ?>

@@ -30,7 +30,7 @@ class Search extends BaseController
                     ->join('customers', 'customers.id = devices.customer_id')
                     ->join('sites', 'sites.id = devices.site_id', 'left')
                     ->groupStart()->like('devices.name', $q)->orLike('devices.ip', $q)->orLike('devices.serial', $q)
-                        ->orLike('devices.mac', $q)->orLike('devices.model', $q)->orLike('devices.username', $q)->orLike('devices.url', $q)->groupEnd()
+                        ->orLike('devices.mac', $q)->orLike('devices.model', $q)->orLike('devices.room', $q)->orLike('devices.username', $q)->orLike('devices.url', $q)->groupEnd()
                     ->orderBy('customers.name')->findAll(100);
             }
 

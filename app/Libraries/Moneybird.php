@@ -106,12 +106,8 @@ class Moneybird
         return 'https://moneybird.com/' . rawurlencode($this->administrationId) . '/estimates/' . rawurlencode($estimateId);
     }
 
-    /**
-     * Maakt een conceptofferte aan.
-     *
-     * @param list<array{description:string, price:float|string, amount:float|string, tax_rate_id?:?string}> $lines
-     */
-    public function createEstimate(string $contactId, array $lines, ?string $reference = null): array
+    /** Offerteregels in Moneybird-formaat */
+    private static function estimateDetails(array $lines): array
     {
         $details = [];
         foreach ($lines as $line) {
@@ -127,7 +123,50 @@ class Moneybird
             ], static fn ($v) => $v !== null && $v !== '');
         }
 
+        return $details;
+    }
+
+    /**
+     * Maakt een conceptofferte aan.
+     *
+     * @param list<array{description:string, price?:float|string, amount?:float|string, tax_rate_id?:?string, text?:bool}> $lines
+     */
+    public function createEstimate(string $contactId, array $lines, ?string $reference = null): array
+    {
         return $this->request('POST', 'estimates', null, [
+            'estimate' => array_filter([
+                'contact_id'          => $contactId,
+                'reference'           => $reference,
+                'prices_are_incl_tax' => false,
+                'details_attributes'  => self::estimateDetails($lines),
+            ], static fn ($v) => $v !== null),
+        ]);
+    }
+
+    /** Offerte ophalen; null als hij in Moneybird niet (meer) bestaat */
+    public function getEstimate(string $estimateId): ?array
+    {
+        try {
+            return $this->request('GET', 'estimates/' . rawurlencode($estimateId));
+        } catch (RuntimeException $e) {
+            if ($e->getCode() === 404) {
+                return null;
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Werkt een bestaande offerte bij: alle oude regels eruit, de nieuwe erin.
+     * Het offertenummer en de link blijven hetzelfde.
+     */
+    public function updateEstimate(array $existing, string $contactId, array $lines, ?string $reference = null): array
+    {
+        $details = array_map(static fn ($d) => ['id' => $d['id'], '_destroy' => true], $existing['details'] ?? []);
+        array_push($details, ...self::estimateDetails($lines));
+
+        return $this->request('PATCH', 'estimates/' . rawurlencode((string) $existing['id']), null, [
             'estimate' => array_filter([
                 'contact_id'          => $contactId,
                 'reference'           => $reference,
@@ -170,7 +209,7 @@ class Moneybird
                 $error = json_encode($error, JSON_UNESCAPED_UNICODE);
             }
 
-            throw new RuntimeException('Moneybird gaf een fout (' . $status . '): ' . $error);
+            throw new RuntimeException('Moneybird gaf een fout (' . $status . '): ' . $error, $status);
         }
 
         return is_array($data) ? $data : [];

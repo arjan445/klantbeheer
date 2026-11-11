@@ -6,9 +6,9 @@ $manage = user_can('billing.manage');
 <a href="<?= site_url('offertes') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Offertes</a>
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
     <div>
-        <h3 class="mb-0">Offerte #<?= (int) $quote['id'] ?> <span class="badge text-bg-<?= $stColor ?> fs-6 align-middle"><?= esc($stLabel) ?></span></h3>
+        <h3 class="mb-0 h4-sm">Offerte #<?= (int) $quote['id'] ?> <span class="badge text-bg-<?= $stColor ?> fs-6 align-middle"><?= esc($stLabel) ?></span></h3>
         <div class="text-muted"><a href="<?= site_url('klanten/' . $customer['id']) ?>"><?= esc($customer['name']) ?></a> · <?= datum($quote['created_at']) ?>
-            <?php if ($quote['moneybird_estimate_id'] && $mb->configured()) : ?>· <a href="<?= esc($mb->estimateUrl($quote['moneybird_estimate_id']), 'attr') ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> In Moneybird</a><?php endif ?></div>
+            <?php if ($quote['moneybird_estimate_id'] && $mb->configured()) : ?>· <a href="<?= esc($mb->estimateUrl($quote['moneybird_estimate_id']), 'attr') ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Moneybird<?= $quote['moneybird_number'] ? ' ' . esc($quote['moneybird_number']) : '' ?></a><?php endif ?></div>
     </div>
     <?php if ($manage) : ?>
     <div class="d-flex gap-2 flex-wrap">
@@ -41,14 +41,11 @@ $manage = user_can('billing.manage');
     </div>
     <?php endif ?>
 
-    <table class="table table-sm align-middle" id="lines">
-        <thead><tr>
-            <th style="width: 24px"></th><th>Omschrijving</th><th style="width: 90px" class="text-end">Aantal</th>
-            <th style="width: 120px" class="text-end">Kostprijs</th><th style="width: 120px" class="text-end">Verkoop</th>
-            <th style="width: 110px" class="text-end">Totaal</th><th style="width: 90px" class="text-end">Marge</th><th style="width: 60px"></th>
-        </tr></thead>
-        <tbody></tbody>
-    </table>
+    <div class="ql-head d-none d-md-grid small text-muted fw-semibold">
+        <span></span><span>Omschrijving</span><span class="text-end">Aantal</span><span class="text-end">Kostprijs</span>
+        <span class="text-end">Verkoop</span><span class="text-end">Totaal</span><span class="text-end">Marge</span><span></span>
+    </div>
+    <div id="lines" class="mb-3"></div>
 
     <?php if ($manage) : ?>
     <div class="d-flex gap-2 flex-wrap">
@@ -74,13 +71,19 @@ $manage = user_can('billing.manage');
     </div>
     <div class="col-lg-6 order-lg-1">
         <?php if ($manage) : ?>
-        <div class="d-flex gap-2 flex-wrap">
+        <?php $linked = (bool) $quote['moneybird_estimate_id']; $canMb = $customer['moneybird_contact_id'] && $mb->configured(); ?>
+        <div class="quote-actions d-flex gap-2 flex-wrap">
+            <span class="d-md-none me-auto align-self-center fw-semibold" id="t-sell-bar"></span>
             <button class="btn btn-primary" name="after" value=""><i class="bi bi-check2"></i> Opslaan</button>
-            <button class="btn btn-outline-primary" name="after" value="moneybird" <?= $customer['moneybird_contact_id'] && $mb->configured() ? '' : 'disabled' ?>
-                onclick="return confirm('Opslaan en als conceptofferte aanmaken in Moneybird?')"><i class="bi bi-send"></i> Opslaan &amp; naar Moneybird</button>
+            <button class="btn btn-outline-primary" name="after" value="moneybird" <?= $canMb ? '' : 'disabled' ?>
+                onclick="return confirm('<?= $linked ? 'Opslaan en de gekoppelde offerte in Moneybird bijwerken?' : 'Opslaan en als conceptofferte aanmaken in Moneybird?' ?>')">
+                <i class="bi bi-send"></i> <?= $linked ? 'Opslaan &amp; bijwerken in Moneybird' : 'Opslaan &amp; naar Moneybird' ?></button>
         </div>
         <?php if (! $customer['moneybird_contact_id']) : ?><div class="small text-warning mt-2"><i class="bi bi-exclamation-circle"></i> Klant is niet gekoppeld aan Moneybird. <a href="<?= site_url('klanten/' . $customer['id'] . '/bewerken') ?>">Koppelen</a></div><?php endif ?>
-        <?php if ($quote['moneybird_estimate_id']) : ?><div class="small text-muted mt-2">Let op: er staat al een offerte in Moneybird. Nogmaals versturen maakt een nieuwe aan.</div><?php endif ?>
+        <?php if ($linked) : ?>
+            <div class="small text-muted mt-2"><i class="bi bi-link-45deg"></i> Gekoppeld aan Moneybird-offerte<?= $quote['moneybird_number'] ? ' ' . esc($quote['moneybird_number']) : '' ?>. Bijwerken vervangt de regels in díe offerte; het nummer blijft gelijk.
+                <?php if ($canMb) : ?><button class="btn btn-link btn-sm p-0 align-baseline" name="after" value="moneybird_new" onclick="return confirm('Een extra, nieuwe offerte aanmaken in Moneybird (de oude blijft bestaan)?')">Toch als nieuwe offerte</button><?php endif ?></div>
+        <?php endif ?>
         <?php endif ?>
     </div>
 </div>
@@ -90,28 +93,29 @@ $manage = user_can('billing.manage');
 <?php endif ?>
 
 <template id="row-tpl">
-    <tr>
-        <td class="text-muted handle" style="cursor: grab" title="Slepen om te verplaatsen"><i class="bi bi-grip-vertical"></i></td>
-        <td>
+    <div class="ql">
+        <div class="ql-handle text-muted" title="Slepen om te verplaatsen"><i class="bi bi-grip-vertical"></i></div>
+        <div class="ql-desc">
             <input type="hidden" class="f-type"><input type="hidden" class="f-product">
-            <input class="form-control form-control-sm f-desc" placeholder="Omschrijving">
+            <textarea class="form-control form-control-sm f-desc" rows="1" placeholder="Omschrijving"></textarea>
             <div class="small text-muted f-meta mt-1"></div>
-        </td>
-        <td><input class="form-control form-control-sm text-end f-qty" value="1"></td>
-        <td><input class="form-control form-control-sm text-end f-cost" placeholder="—"></td>
-        <td><input class="form-control form-control-sm text-end f-sell"></td>
-        <td class="text-end f-total"></td>
-        <td class="text-end small f-margin"></td>
-        <td class="text-end text-nowrap">
-            <button type="button" class="btn btn-link btn-sm p-0 text-muted f-up" title="Omhoog"><i class="bi bi-arrow-up"></i></button>
-            <button type="button" class="btn btn-link btn-sm p-0 text-danger f-del" title="Verwijderen"><i class="bi bi-x-lg"></i></button>
-        </td>
-    </tr>
+        </div>
+        <label class="ql-num ql-qty"><span class="ql-label">Aantal</span><input class="form-control form-control-sm text-end f-qty" inputmode="decimal" value="1"></label>
+        <label class="ql-num ql-cost"><span class="ql-label">Kostprijs</span><input class="form-control form-control-sm text-end f-cost" inputmode="decimal" placeholder="—"></label>
+        <label class="ql-num ql-sell"><span class="ql-label">Verkoop</span><input class="form-control form-control-sm text-end f-sell" inputmode="decimal"></label>
+        <div class="ql-total text-end"><span class="ql-label">Totaal</span><span class="f-total fw-semibold"></span></div>
+        <div class="ql-margin text-end small"><span class="f-margin"></span></div>
+        <div class="ql-actions text-end text-nowrap">
+            <button type="button" class="btn btn-link btn-sm p-1 text-muted f-up" title="Omhoog"><i class="bi bi-arrow-up"></i></button>
+            <button type="button" class="btn btn-link btn-sm p-1 text-danger f-del" title="Verwijderen"><i class="bi bi-x-lg"></i></button>
+        </div>
+    </div>
 </template>
 
 <script>
 (function () {
-    const body = document.querySelector('#lines tbody'), tpl = document.getElementById('row-tpl');
+    const body = document.getElementById('lines'), tpl = document.getElementById('row-tpl');
+    const grow = t => { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
     const fmt = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' });
     const num = v => { v = String(v ?? '').replace(/\./g, m => m).replace(',', '.').trim(); const n = parseFloat(v); return isNaN(n) ? null : n; };
     const show = v => v === null || v === undefined || v === '' ? '' : String(Number(v).toFixed(2)).replace('.', ',');
@@ -129,7 +133,8 @@ $manage = user_can('billing.manage');
         f('.f-desc').value = l.description || ''; f('.f-qty').value = show(l.quantity ?? 1).replace(',00', '');
         f('.f-cost').value = show(l.cost_price); f('.f-sell').value = show(l.sell_price);
         if (l.type === 'text') {
-            ['.f-qty', '.f-cost', '.f-sell'].forEach(c => f(c).classList.add('d-none'));
+            row.classList.add('ql-text');
+            ['.ql-qty', '.ql-cost', '.ql-sell', '.ql-total', '.ql-margin'].forEach(c => f(c).classList.add('d-none'));
             f('.f-desc').classList.add('fw-semibold');
             f('.f-desc').placeholder = 'Kopje of toelichting';
         }
@@ -143,6 +148,7 @@ $manage = user_can('billing.manage');
         if (l.meta) f('.f-meta').textContent = l.meta;
         if (!editable) row.querySelectorAll('input, button').forEach(e => e.disabled = true);
         body.appendChild(row);
+        grow(f('.f-desc'));
         calc();
         if (focus) f('.f-desc').focus();
         return row;
@@ -150,7 +156,7 @@ $manage = user_can('billing.manage');
 
     function calc() {
         let sell = 0, cost = 0, costKnown = 0, labor = 0;
-        body.querySelectorAll('tr').forEach(r => {
+        body.querySelectorAll('.ql').forEach(r => {
             const type = r.querySelector('.f-type').value;
             if (type === 'text') { r.querySelector('.f-total').textContent = ''; r.querySelector('.f-margin').textContent = ''; return; }
             const q = num(r.querySelector('.f-qty').value) ?? 0, s = num(r.querySelector('.f-sell').value) ?? 0, c = num(r.querySelector('.f-cost').value);
@@ -164,6 +170,7 @@ $manage = user_can('billing.manage');
             } else r.querySelector('.f-margin').textContent = '';
         });
         document.getElementById('t-sell').textContent = fmt.format(sell);
+        const bar = document.getElementById('t-sell-bar'); if (bar) bar.textContent = fmt.format(sell) + ' excl.';
         document.getElementById('t-vat').textContent = fmt.format(sell * 0.21);
         document.getElementById('t-incl').textContent = fmt.format(sell * 1.21);
         document.getElementById('t-cost').textContent = fmt.format(cost);
@@ -172,20 +179,20 @@ $manage = user_can('billing.manage');
         document.getElementById('t-margin').textContent = fmt.format(margin) + (costKnown > 0 ? ' (' + Math.round(margin / costKnown * 100) + '%)' : '');
     }
 
-    body.addEventListener('input', calc);
+    body.addEventListener('input', e => { if (e.target.classList.contains('f-desc')) grow(e.target); calc(); });
     body.addEventListener('click', e => {
-        const row = e.target.closest('tr');
+        const row = e.target.closest('.ql');
         if (e.target.closest('.f-del')) { row.remove(); calc(); }
         if (e.target.closest('.f-up') && row.previousElementSibling) { body.insertBefore(row, row.previousElementSibling); }
     });
 
     // Slepen om te sorteren
     let dragged = null;
-    body.addEventListener('mousedown', e => { const r = e.target.closest('tr'); if (r) r.draggable = !!e.target.closest('.handle'); });
-    body.addEventListener('dragstart', e => { dragged = e.target.closest('tr'); });
+    body.addEventListener('mousedown', e => { const r = e.target.closest('.ql'); if (r) r.draggable = !!e.target.closest('.ql-handle'); });
+    body.addEventListener('dragstart', e => { dragged = e.target.closest('.ql'); });
     body.addEventListener('dragover', e => {
         e.preventDefault();
-        const over = e.target.closest('tr');
+        const over = e.target.closest('.ql');
         if (!dragged || !over || over === dragged) return;
         const after = e.clientY > over.getBoundingClientRect().top + over.offsetHeight / 2;
         body.insertBefore(dragged, after ? over.nextSibling : over);
@@ -232,7 +239,9 @@ $manage = user_can('billing.manage');
     }
 
     // Enter in een regel niet het formulier laten versturen
-    document.getElementById('quote-form').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target !== search) e.preventDefault(); });
+    document.getElementById('quote-form').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.classList.contains('f-desc')) && e.target !== search) e.preventDefault();
+    });
 
     <?php foreach ($lines as $l) : ?>
     addLine(<?= json_encode([

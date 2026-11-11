@@ -16,7 +16,7 @@ use Throwable;
  */
 class Devices extends BaseController
 {
-    private const FIELDS = ['customer_id', 'site_id', 'type', 'name', 'brand', 'model', 'serial', 'firmware', 'ip', 'port', 'mac', 'url', 'username', 'notes', 'installed_at'];
+    private const FIELDS = ['customer_id', 'site_id', 'type', 'name', 'room', 'brand', 'model', 'serial', 'firmware', 'ip', 'port', 'mac', 'url', 'username', 'notes', 'installed_at'];
 
     private function rules(): array
     {
@@ -26,6 +26,7 @@ class Devices extends BaseController
             'type'         => 'required|in_list[' . implode(',', array_keys(device_types())) . ']',
             'name'         => 'required|max_length[255]',
             'url'          => 'permit_empty|max_length[255]',
+            'room'         => 'permit_empty|max_length[100]',
             'installed_at' => 'permit_empty|valid_date[Y-m-d]',
         ];
     }
@@ -74,15 +75,17 @@ class Devices extends BaseController
             'type'        => $this->request->getGet('soort') ?? 'camera',
         ];
 
-        // "Kopie maken": velden overnemen (zonder wachtwoord), handig bij 20 camera's
+        // "Kopie maken" / "Opslaan & volgende": velden overnemen (zonder wachtwoord en serienummer)
         if ($copyId = $this->request->getGet('kopie')) {
             $copy = model(DeviceModel::class)->find($copyId);
             if ($copy) {
-                $values = array_intersect_key($copy, array_flip(self::FIELDS));
-                $values['name'] = $copy['name'] . ' (kopie)';
+                $values         = array_intersect_key($copy, array_flip(self::FIELDS));
+                $values['name'] = $this->nextName($copy['name']);
                 $values['ip']   = $this->nextIp($copy['ip']);
                 $values['serial'] = null;
                 $values['mac']    = null;
+                $values['room']   = null;
+                $values['copied_from'] = $copy['id'];
             }
         }
 
@@ -167,7 +170,7 @@ class Devices extends BaseController
         }
 
         if ($this->request->getPost('next') === 'copy') {
-            return $this->back('Opgeslagen. Vul het volgende apparaat in.', 'message', site_url('apparaten/nieuw?kopie=' . $id));
+            return $this->back('"' . $post['name'] . '" opgeslagen. Vul het volgende in.', 'message', site_url('apparaten/nieuw?kopie=' . $id));
         }
 
         return $this->back('Opgeslagen.', 'message', site_url('klanten/' . $post['customer_id']));
@@ -210,6 +213,16 @@ class Devices extends BaseController
         Vault::log('verwijderd: ' . mb_substr($device['name'], 0, 18), ['id' => null, 'customer_id' => $device['customer_id']]);
 
         return $this->back('Apparaat verwijderd.', 'message', site_url('klanten/' . $device['customer_id']));
+    }
+
+    /** "Camera 3" -> "Camera 4", "Bewegingsmelder" -> "Bewegingsmelder 2" */
+    private function nextName(string $name): string
+    {
+        if (preg_match('/^(.*?)(\d+)(\D*)$/u', $name, $m)) {
+            return $m[1] . ((int) $m[2] + 1) . $m[3];
+        }
+
+        return $name . ' 2';
     }
 
     /** 192.168.1.64 -> 192.168.1.65 (alleen voor IPv4) */
