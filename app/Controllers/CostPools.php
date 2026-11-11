@@ -37,30 +37,25 @@ class CostPools extends BaseController
     private function form(?array $pool)
     {
         $title = $pool ? 'Kostenpool bewerken' : 'Nieuwe kostenpool';
-        $mb    = new Moneybird();
-        $data  = [
-            'pool'     => $pool ?? ['lookback_months' => 12, 'allocation_pct' => 100],
-            'isNew'    => $pool === null,
-            'services' => model(ServiceModel::class)->orderBy('type')->orderBy('name')->findAll(),
-            'ledgers'  => [],
-            'mbError'  => null,
+        $db   = db_connect();
+        $from = date('Y-m-d', strtotime('-12 months +1 day'));
+        $data = [
+            'pool'      => $pool ?? ['lookback_months' => 12, 'allocation_pct' => 100],
+            'isNew'     => $pool === null,
+            'services'  => model(ServiceModel::class)->orderBy('type')->orderBy('name')->findAll(),
+            'suppliers' => $db->table('purchase_lines')->select('supplier_id, MAX(supplier_name) AS name, SUM(amount) AS total, COUNT(*) AS n')
+                ->where('supplier_id IS NOT NULL')->where('date >=', $from)->groupBy('supplier_id')->orderBy('name')->get()->getResultArray(),
+            'ledgers'   => $db->table('purchase_lines')->select('ledger_id, MAX(ledger_name) AS name, SUM(amount) AS total, COUNT(*) AS n')
+                ->where('ledger_id IS NOT NULL')->where('date >=', $from)->groupBy('ledger_id')->orderBy('name')->get()->getResultArray(),
+            'hasLines'  => $db->table('purchase_lines')->countAllResults() > 0,
+            'mb'        => new Moneybird(),
         ];
-
-        if ($mb->configured()) {
-            try {
-                $data['ledgers'] = $mb->ledgerAccounts();
-            } catch (Throwable $e) {
-                $data['mbError'] = $e->getMessage();
-            }
-        } else {
-            $data['mbError'] = 'Moneybird is niet ingesteld.';
-        }
 
         if (! $this->request->is('post')) {
             return $this->page('costpools/form', $data, $title);
         }
 
-        $post = $this->nullify($this->request->getPost(['name', 'lookback_months', 'allocation_pct', 'extra_yearly', 'notes']));
+        $post = $this->nullify($this->request->getPost(['name', 'lookback_months', 'allocation_pct', 'extra_yearly', 'keywords', 'notes']));
         foreach (['allocation_pct', 'extra_yearly'] as $f) {
             if ($post[$f] !== null) {
                 $post[$f] = str_replace(',', '.', $post[$f]);
@@ -79,8 +74,9 @@ class CostPools extends BaseController
             return $this->page('costpools/form', $data, $title);
         }
 
-        $ledgers = array_filter(array_map(static fn ($v) => preg_replace('/\D/', '', (string) $v), (array) $this->request->getPost('ledgers')));
-        $post['ledger_account_ids'] = implode(',', $ledgers);
+        $digits = static fn ($list) => implode(',', array_filter(array_map(static fn ($v) => preg_replace('/\D/', '', (string) $v), (array) $list)));
+        $post['ledger_account_ids'] = $digits($this->request->getPost('ledgers'));
+        $post['supplier_ids']       = $digits($this->request->getPost('suppliers'));
 
         $model = model(CostPoolModel::class);
         if ($pool) {
@@ -105,17 +101,8 @@ class CostPools extends BaseController
             }
         }
 
-        // Meteen ophalen als er categorieën zijn gekozen
+        Pools::refreshPools();
         $msg = 'Kostenpool opgeslagen.';
-        if ($ledgers !== [] && $mb->configured()) {
-            try {
-                Pools::sync((int) $id);
-                $msg .= ' Inkoopkosten opgehaald uit Moneybird.';
-            } catch (Throwable $e) {
-                $this->session->setFlashdata('error', 'Ophalen uit Moneybird mislukt: ' . $e->getMessage());
-            }
-        }
-        Pools::recalculate();
 
         return $this->back($msg, 'message', site_url('kostprijzen'));
     }
@@ -128,7 +115,43 @@ class CostPools extends BaseController
             return $this->back('Ophalen uit Moneybird mislukt: ' . $e->getMessage(), 'error');
         }
 
-        return $this->back(sprintf('%d inkoopdocumenten doorgelopen, %d kostenpool(s) bijgewerkt.', $r['documents'], $r['pools']), 'message', site_url('kostprijzen'));
+        return $this->back(sprintf('%d inkoopdocumenten (%d regels) opgehaald, %d kostenpool(s) bijgewerkt.', $r['documents'], $r['lines'], $r['pools']), 'message', site_url('kostprijzen'));
+    }
+
+    /**
+     * Alle inkoopregels in de periode van de pool, met per regel aan/uit.
+     */
+    public function lines($id)
+    {
+        $pool  = $this->findOr404(CostPoolModel::class, $id);
+        $lines = Pools::linesInPeriod($pool);
+
+        if ($this->request->is('post')) {
+            $checked = array_flip(array_map('strval', (array) $this->request->getPost('count')));
+            $include = $exclude = [];
+            foreach ($lines as $l) {
+                $rule = Pools::ruleMatch($pool, $l);
+                $on   = isset($checked[(string) $l['detail_id']]);
+                if ($on && ! $rule) {
+                    $include[] = $l['detail_id'];
+                } elseif (! $on && $rule) {
+                    $exclude[] = $l['detail_id'];
+                }
+            }
+            // Keuzes van regels buiten de huidige periode bewaren
+            $inPeriod = array_flip(array_column($lines, 'detail_id'));
+            $keep     = static fn ($list) => array_filter(Pools::idList($list), static fn ($d) => ! isset($inPeriod[$d]));
+
+            model(CostPoolModel::class)->update($id, [
+                'include_lines' => implode(',', array_merge($keep($pool['include_lines']), $include)),
+                'exclude_lines' => implode(',', array_merge($keep($pool['exclude_lines']), $exclude)),
+            ]);
+            Pools::refreshPools();
+
+            return $this->back('Inkoopregels opgeslagen.', 'message', site_url('kostprijzen'));
+        }
+
+        return $this->page('costpools/lines', ['pool' => $pool, 'lines' => $lines], 'Inkoopregels: ' . $pool['name']);
     }
 
     public function delete($id)

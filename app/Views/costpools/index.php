@@ -1,11 +1,11 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h3 class="mb-0">Kostprijzen</h3>
-        <div class="text-muted small">Inkoopkosten uit Moneybird, per categorie opgeteld en verdeeld over je abonnementen.</div>
+        <div class="text-muted small">Inkoop uit Moneybird (per leverancier, zoekwoord of categorie) verdeeld over je abonnementen.</div>
     </div>
     <?php if (user_can('billing.manage')) : ?>
     <div class="d-flex gap-2">
-        <?php if ($pools !== []) : ?>
+        <?php if (user_can("billing.manage")) : ?>
         <form method="post" action="<?= site_url('kostprijzen/ophalen') ?>"><?= csrf_field() ?>
             <button class="btn btn-outline-secondary" <?= $mb->configured() ? '' : 'disabled' ?>><i class="bi bi-arrow-repeat"></i> Ophalen uit Moneybird</button>
         </form>
@@ -20,7 +20,8 @@
     <h5>Hoe werkt het?</h5>
     <ol class="mb-0">
         <li>Maak een kostenpool, bijvoorbeeld <strong>Hostingplatform</strong>.</li>
-        <li>Vink de Moneybird-categorieën aan waarop je de inkoop boekt, zoals <em>Plesk-licentie</em>, <em>VPS</em> en <em>Imunify</em>.</li>
+        <li>Klik op <em>Ophalen uit Moneybird</em>: alle inkoopfacturen en bonnetjes van het afgelopen jaar worden opgehaald.</li>
+        <li>Kies welke inkoop erbij hoort: per <strong>leverancier</strong> (bijv. Hetzner, Plesk), via <strong>zoekwoorden</strong> (bijv. "vps", "imunify") en/of per <strong>categorie</strong>. Per regel kun je nog aan- of uitvinken.</li>
         <li>Koppel de diensten die van dat platform gebruikmaken, bijvoorbeeld <em>Webhosting Basis</em> en <em>Webhosting Pro</em> (met gewicht 2).</li>
         <li>De app telt de inkoopfacturen en bonnetjes van de laatste 12 maanden op en deelt dat door het aantal actieve abonnementen. Dat bedrag wordt de inkoopprijs van de dienst, en de marges kloppen vanzelf.</li>
     </ol>
@@ -42,7 +43,7 @@
                 <div class="col-lg-5">
                     <h6 class="text-muted">Opbouw</h6>
                     <table class="table table-sm mb-2">
-                        <?php foreach ($bd['ledgers'] ?? [] as $name => $amount) : ?>
+                        <?php foreach ($bd['suppliers'] ?? [] as $name => $amount) : ?>
                             <tr><td><?= esc($name) ?></td><td class="text-end"><?= euro($amount) ?></td></tr>
                         <?php endforeach ?>
                         <tr class="fw-semibold"><td>Totaal Moneybird <span class="small text-muted fw-normal"><?= datum($p['synced_from']) ?> t/m <?= datum($p['synced_to']) ?></span></td><td class="text-end"><?= euro($p['synced_amount'] ?? 0) ?></td></tr>
@@ -56,6 +57,9 @@
                             <tr><td>Extra kosten (handmatig)</td><td class="text-end"><?= euro($p['extra_yearly']) ?></td></tr>
                         <?php endif ?>
                     </table>
+                    <?php if (user_can('billing.manage')) : ?>
+                        <a href="<?= site_url('kostprijzen/' . $p['id'] . '/regels') ?>" class="btn btn-sm btn-outline-primary mb-2"><i class="bi bi-list-check"></i> Inkoopregels bekijken / aanpassen</a>
+                    <?php endif ?>
                     <div class="small text-muted">
                         <?php if ($p['synced_at']) : ?>Laatst opgehaald: <?= date('d-m-Y H:i', strtotime($p['synced_at'])) ?><?php else : ?>Nog niet opgehaald uit Moneybird.<?php endif ?>
                     </div>
@@ -91,23 +95,6 @@
                 </div>
             </div>
 
-            <?php if (! empty($bd['lines'])) : ?>
-            <details class="mt-3">
-                <summary class="small">Onderliggende inkoopregels (<?= count($bd['lines']) ?>)</summary>
-                <table class="table table-sm small mt-2">
-                    <thead><tr><th>Datum</th><th>Leverancier</th><th>Categorie</th><th>Omschrijving</th><th class="text-end">Excl. btw</th></tr></thead>
-                    <?php foreach ($bd['lines'] as $l) : ?>
-                        <tr>
-                            <td class="text-nowrap"><?= datum($l['date']) ?></td>
-                            <td><?= esc($l['supplier']) ?></td>
-                            <td><?= esc($l['ledger']) ?></td>
-                            <td><?= esc($l['text']) ?> <span class="text-muted">(<?= esc($l['kind']) ?>)</span></td>
-                            <td class="text-end"><?= euro($l['amount']) ?></td>
-                        </tr>
-                    <?php endforeach ?>
-                </table>
-            </details>
-            <?php endif ?>
         </div>
     </div>
 <?php endforeach ?>

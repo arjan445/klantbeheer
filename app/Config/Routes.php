@@ -55,6 +55,7 @@ $routes->group('kostprijzen', ['filter' => 'can:billing.view'], static function 
     $routes->match(['GET', 'POST'], 'nieuw', [CostPools::class, 'create'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [CostPools::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [CostPools::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
+    $routes->match(['GET', 'POST'], '(:num)/regels', [CostPools::class, 'lines/$1'], ['filter' => 'can:billing.manage']);
 });
 
 // Abonnementen

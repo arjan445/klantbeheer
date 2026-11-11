@@ -1,19 +1,22 @@
 <?php
-$p        = $pool;
-$selected = array_flip(array_filter(explode(',', (string) ($p['ledger_account_ids'] ?? ''))));
-$typeLabels = ['expenses' => 'Kosten', 'direct_costs' => 'Inkoopkosten', 'non_current_assets' => 'Vaste activa', 'current_assets' => 'Vlottende activa', 'revenue' => 'Omzet', 'other_income_expenses' => 'Overig', 'equity' => 'Eigen vermogen', 'current_liabilities' => 'Kortlopende schulden', 'provisions' => 'Voorzieningen', 'non_current_liabilities' => 'Langlopende schulden', 'temporary' => 'Tijdelijk'];
-// Kostencategorieën bovenaan
-usort($ledgers, static function ($a, $b) {
-    $rank = static fn ($t) => in_array($t, ['direct_costs', 'expenses'], true) ? 0 : 1;
-    return [$rank($a['account_type'] ?? ''), $a['name']] <=> [$rank($b['account_type'] ?? ''), $b['name']];
-});
+$p         = $pool;
+$selLedger = array_flip(\App\Libraries\CostPools::idList($p['ledger_account_ids'] ?? ''));
+$selSupp   = array_flip(\App\Libraries\CostPools::idList($p['supplier_ids'] ?? ''));
 ?>
 <a href="<?= site_url('kostprijzen') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Kostprijzen</a>
 <h3 class="mb-3"><?= $isNew ? 'Nieuwe kostenpool' : 'Kostenpool bewerken' ?></h3>
+
+<?php if (! $hasLines) : ?>
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="bi bi-info-circle"></i> Er zijn nog geen inkoopregels opgehaald, dus er zijn nog geen leveranciers en categorieën om uit te kiezen.</span>
+    <form method="post" action="<?= site_url('kostprijzen/ophalen') ?>" class="d-inline"><?= csrf_field() ?><button class="btn btn-sm btn-primary" <?= $mb->configured() ? '' : 'disabled' ?>><i class="bi bi-arrow-repeat"></i> Nu ophalen uit Moneybird</button></form>
+</div>
+<?php endif ?>
+
 <form method="post"><?= csrf_field() ?>
 <div class="row g-3">
     <div class="col-lg-6">
-        <div class="card h-100"><div class="card-body">
+        <div class="card mb-3"><div class="card-body">
             <div class="mb-3"><label class="form-label">Naam *</label><input name="name" class="form-control" required value="<?= esc($p['name'] ?? '') ?>" placeholder="Bijv. Hostingplatform"></div>
             <div class="row g-3">
                 <div class="col-sm-4"><label class="form-label">Periode</label>
@@ -27,10 +30,12 @@ usort($ledgers, static function ($a, $b) {
                     <div class="form-text">Kosten die niet in Moneybird staan.</div></div>
             </div>
             <div class="mt-3"><label class="form-label">Notities</label><textarea name="notes" rows="2" class="form-control"><?= esc($p['notes'] ?? '') ?></textarea></div>
+        </div></div>
 
-            <h6 class="mt-4">Diensten die deze kosten dragen</h6>
-            <p class="small text-muted">De kosten worden verdeeld naar het aantal actieve abonnementen × gewicht. Een dienst met gewicht 2 draagt dubbel zoveel per stuk.</p>
-            <table class="table table-sm">
+        <div class="card"><div class="card-body">
+            <h6>Diensten die deze kosten dragen</h6>
+            <p class="small text-muted">Verdeeld naar aantal actieve abonnementen × gewicht. Gewicht 2 = dubbel zoveel per stuk.</p>
+            <table class="table table-sm mb-0">
                 <?php foreach ($services as $s) : ?>
                     <?php $linked = ! $isNew && (int) $s['cost_pool_id'] === (int) $p['id']; $otherPool = $s['cost_pool_id'] && ! $linked; ?>
                     <tr class="<?= $otherPool ? 'text-muted' : '' ?>">
@@ -43,30 +48,45 @@ usort($ledgers, static function ($a, $b) {
             </table>
         </div></div>
     </div>
+
     <div class="col-lg-6">
-        <div class="card h-100"><div class="card-body">
-            <h6>Moneybird-categorieën</h6>
-            <p class="small text-muted">Vink de categorieën aan waarop je de inkoopfacturen en bonnetjes voor dit platform boekt.</p>
-            <?php if ($mbError) : ?>
-                <div class="alert alert-warning small">Kan de categorieën niet ophalen: <?= esc($mbError) ?><br>Controleer of het API-token de rechten <em>Documenten</em> en <em>Instellingen</em> heeft.</div>
-            <?php endif ?>
-            <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter categorieën…" oninput="const q=this.value.toLowerCase();document.querySelectorAll('.ledger-row').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(q))">
-            <div style="max-height: 480px; overflow-y: auto">
-                <?php foreach ($ledgers as $l) : ?>
-                    <div class="form-check ledger-row">
-                        <input class="form-check-input" type="checkbox" name="ledgers[]" value="<?= esc($l['id'], 'attr') ?>" id="la<?= esc($l['id'], 'attr') ?>" <?= isset($selected[(string) $l['id']]) ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="la<?= esc($l['id'], 'attr') ?>"><?= esc($l['name']) ?>
-                            <span class="small text-muted"><?= esc($typeLabels[$l['account_type'] ?? ''] ?? ($l['account_type'] ?? '')) ?><?= ! empty($l['account_id']) ? ' · ' . esc($l['account_id']) : '' ?></span></label>
+        <div class="card"><div class="card-body">
+            <h6>Welke inkoop hoort hierbij?</h6>
+            <p class="small text-muted mb-3">Een inkoopregel telt mee als hij aan <strong>één</strong> van deze regels voldoet. Daarna kun je per regel nog aan- of uitvinken via <em>Inkoopregels</em>.</p>
+
+            <label class="form-label fw-semibold"><i class="bi bi-shop"></i> Leveranciers</label>
+            <div class="form-text mt-0 mb-1">Alle inkoop van deze leverancier telt mee, ongeacht de categorie. Bijv. Hetzner, Plesk, CloudLinux.</div>
+            <input type="search" class="form-control form-control-sm mb-1" placeholder="Filter leveranciers…" oninput="const q=this.value.toLowerCase();document.querySelectorAll('.supp-row').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(q))">
+            <div class="border rounded p-2 mb-3" style="max-height: 220px; overflow-y: auto">
+                <?php foreach ($suppliers as $s) : ?>
+                    <div class="form-check supp-row d-flex justify-content-between">
+                        <span><input class="form-check-input" type="checkbox" name="suppliers[]" value="<?= esc($s['supplier_id'], 'attr') ?>" id="sp<?= esc($s['supplier_id'], 'attr') ?>" <?= isset($selSupp[$s['supplier_id']]) ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="sp<?= esc($s['supplier_id'], 'attr') ?>"><?= esc($s['name']) ?></label></span>
+                        <span class="small text-muted text-nowrap"><?= euro($s['total']) ?> · <?= (int) $s['n'] ?> regels</span>
                     </div>
                 <?php endforeach ?>
-                <?php foreach (array_diff_key($selected, array_flip(array_map('strval', array_column($ledgers, 'id')))) as $id => $_) : ?>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ledgers[]" value="<?= esc($id, 'attr') ?>" checked><label class="form-check-label small text-muted">Categorie <?= esc($id) ?> (niet geladen)</label></div>
+                <?php if ($suppliers === []) : ?><span class="small text-muted">Nog geen inkoop opgehaald.</span><?php endif ?>
+            </div>
+
+            <label class="form-label fw-semibold"><i class="bi bi-search"></i> Zoekwoorden</label>
+            <textarea name="keywords" rows="3" class="form-control mb-1" placeholder="Eén per regel, bijv.&#10;vps&#10;plesk&#10;imunify"><?= esc($p['keywords'] ?? '') ?></textarea>
+            <div class="form-text mt-0 mb-3">Zoekt in de omschrijving, referentie en leveranciersnaam (hoofdletters maken niet uit).</div>
+
+            <label class="form-label fw-semibold"><i class="bi bi-tags"></i> Categorieën</label>
+            <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto">
+                <?php foreach ($ledgers as $l) : ?>
+                    <div class="form-check d-flex justify-content-between">
+                        <span><input class="form-check-input" type="checkbox" name="ledgers[]" value="<?= esc($l['ledger_id'], 'attr') ?>" id="la<?= esc($l['ledger_id'], 'attr') ?>" <?= isset($selLedger[$l['ledger_id']]) ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="la<?= esc($l['ledger_id'], 'attr') ?>"><?= esc($l['name']) ?></label></span>
+                        <span class="small text-muted text-nowrap"><?= euro($l['total']) ?></span>
+                    </div>
                 <?php endforeach ?>
+                <?php if ($ledgers === []) : ?><span class="small text-muted">Nog geen inkoop opgehaald.</span><?php endif ?>
             </div>
         </div></div>
     </div>
 </div>
-<div class="mt-3 d-flex gap-2"><button class="btn btn-primary">Opslaan &amp; ophalen</button><a href="<?= site_url('kostprijzen') ?>" class="btn btn-outline-secondary">Annuleren</a></div>
+<div class="mt-3 d-flex gap-2"><button class="btn btn-primary">Opslaan</button><a href="<?= site_url('kostprijzen') ?>" class="btn btn-outline-secondary">Annuleren</a></div>
 </form>
 <?php if (! $isNew) : ?>
 <div class="mt-3"><?= post_link(site_url('kostprijzen/' . $p['id'] . '/verwijderen'), '<i class="bi bi-trash"></i> Kostenpool verwijderen', 'Kostenpool verwijderen? De diensten houden hun laatste inkoopprijs.') ?></div>
