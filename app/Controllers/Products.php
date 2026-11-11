@@ -181,13 +181,15 @@ class Products extends BaseController
         if ($file === null || ! $file->isValid()) {
             return $this->back('Kies het OSEC-prijslijstbestand (.xlsx).', 'error');
         }
+        @set_time_limit(300);
         try {
             $r = Catalog::importOsec($file->getTempName());
         } catch (Throwable $e) {
             return $this->back('Import mislukt: ' . $e->getMessage(), 'error');
         }
 
-        return $this->back(sprintf('OSEC: %d nieuw, %d bijgewerkt, %d niet meer in de prijslijst (inactief).', $r['new'], $r['updated'], $r['inactive']), 'message', site_url('producten?leverancier=' . Catalog::supplierByCode('osec')['id']));
+        return $this->back(sprintf('OSEC: %d artikelen ingelezen (%s), %d nieuw, %d bijgewerkt, %d niet meer in de prijslijst (inactief).',
+            $r['total'], $r['net'] ? 'met jouw nettoprijzen' : 'alleen brutoprijzen, korting uit de instellingen', $r['new'], $r['updated'], $r['inactive']), 'message', site_url('producten?leverancier=' . Catalog::supplierByCode('osec')['id']));
     }
 
     public function syncWimood()

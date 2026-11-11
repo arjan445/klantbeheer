@@ -83,44 +83,89 @@ class Catalog
             throw new RuntimeException('Het bestand is leeg.');
         }
 
-        // Kolommen zoeken op kopnaam
-        $head = array_map('mb_strtolower', array_shift($rows));
-        $used = [];
-        $col  = static function (array $names) use ($head, &$used) {
-            // Eerst exacte kopnaam, daarna "bevat"; een kolom wordt maar één keer gebruikt
-            foreach ([true, false] as $exact) {
-                foreach ($names as $n) {
-                    foreach ($head as $letter => $title) {
-                        if (! isset($used[$letter]) && ($exact ? trim($title) === $n : str_contains($title, $n))) {
-                            $used[$letter] = true;
+        // Kopregel zoeken in de eerste 20 regels (er kunnen titelregels boven staan)
+        $norm = static fn ($v) => trim(preg_replace('/\s+/', ' ', mb_strtolower((string) $v)));
+        $headIndex = null;
+        foreach (array_slice($rows, 0, 20, true) as $i => $r) {
+            $titles = array_map($norm, $r);
+            $hasSku  = (bool) array_filter($titles, static fn ($t) => preg_match('/artikel ?n(r|ummer)|art\.? ?nr|^sku$|productcode/', $t));
+            $hasName = (bool) array_filter($titles, static fn ($t) => preg_match('/artikel|omschrijving|product ?naam|naam/', $t));
+            if ($hasSku && $hasName) {
+                $headIndex = $i;
+                break;
+            }
+        }
+        if ($headIndex === null) {
+            $first = implode(' | ', array_filter(array_map('strval', $rows[0] ?? [])));
+            throw new RuntimeException('Geen kopregel met artikelnummer en omschrijving gevonden. Eerste regel: "' . mb_substr($first, 0, 200) . '"');
+        }
+        $head = array_map($norm, $rows[$headIndex]);
+        $rows = array_slice($rows, $headIndex + 1);
 
-                            return $letter;
-                        }
-                    }
+        $used = [];
+        $col  = static function (string $pattern) use ($head, &$used) {
+            foreach ($head as $letter => $title) {
+                if (! isset($used[$letter]) && preg_match($pattern, $title)) {
+                    $used[$letter] = true;
+
+                    return $letter;
                 }
             }
 
             return null;
         };
-        $cSku   = $col(['artikelnr', 'artikelnummer']);
-        $cGroup = $col(['groepnaam']);
-        $cName  = $col(['artikel', 'omschrijving', 'artikelomschrijving']);
-        $cPrice = $col(['bruto prijs', 'bruto', 'prijs']);
-        $cInfo  = $col(['info']);
-        if ($cSku === null || $cName === null || $cPrice === null) {
-            throw new RuntimeException('Kolommen Artikelnr, Artikel en Bruto prijs niet gevonden. Is dit de OSEC-prijslijst?');
+        $cSku   = $col('/artikel ?n(r|ummer)|art\.? ?nr|^sku$|productcode/');
+        $cNet   = $col('/netto|uw prijs|jouw prijs|inkoop|dealer|prijs na korting/');
+        $cPrice = $col('/bruto|advies|catalogus|lijst ?prijs/') ?? $col('/prijs/');
+        $cGroup = $col('/groepnaam|productgroep|kortingsgroep/');
+        $cName  = $col('/^artikel$|omschrijving|product ?naam|^naam$|artikel/');
+        $cInfo  = $col('/^info$|opmerking|status/');
+        if ($cSku === null || $cName === null || ($cPrice === null && $cNet === null)) {
+            throw new RuntimeException('Kolommen niet herkend. Gevonden: "' . implode(' | ', array_filter($head)) . '"');
         }
+
+        $toNum = static function ($v) {
+            $v = trim(str_replace(['€', ' '], '', (string) $v));
+            if (preg_match('/^\d{1,3}(\.\d{3})+,\d+$/', $v)) { // 1.234,56
+                $v = str_replace(['.', ','], ['', '.'], $v);
+            } else {
+                $v = str_replace(',', '.', $v);
+            }
+
+            return is_numeric($v) ? round((float) $v, 2) : null;
+        };
 
         $supplier = self::supplierByCode('osec');
 
-        return self::upsert($supplier, array_map(static fn ($r) => [
-            'supplier_sku' => $r[$cSku] ?? '',
-            'name'         => $r[$cName] ?? '',
-            'list_price'   => is_numeric(str_replace(',', '.', $r[$cPrice] ?? '')) ? (float) str_replace(',', '.', $r[$cPrice]) : null,
-            'group_name'   => $cGroup ? (($r[$cGroup] ?? '') ?: null) : null,
-            'info'         => $cInfo ? (($r[$cInfo] ?? '') ?: null) : null,
-            'brand'        => self::guessBrand($r[$cName] ?? ''),
-        ], $rows), 'osec', true);
+        $items = [];
+        foreach ($rows as $r) {
+            $sku = trim((string) ($r[$cSku] ?? ''));
+            if ($sku === '' || ! preg_match('/\d/', $sku)) {
+                continue; // lege regels, tussenkopjes
+            }
+            $items[] = [
+                'supplier_sku' => $sku,
+                'name'         => $r[$cName] ?? '',
+                'list_price'   => $cPrice ? $toNum($r[$cPrice] ?? '') : null,
+                'cost_price'   => $cNet ? $toNum($r[$cNet] ?? '') : null, // nettoprijs: korting zit er al in
+                'group_name'   => $cGroup ? (($r[$cGroup] ?? '') ?: null) : null,
+                'info'         => $cInfo ? (($r[$cInfo] ?? '') ?: null) : null,
+                'brand'        => self::guessBrand($r[$cName] ?? ''),
+            ];
+        }
+        if ($items === []) {
+            throw new RuntimeException('Geen artikelen gevonden onder de kopregel "' . implode(' | ', array_filter($head)) . '".');
+        }
+
+        $supplier = self::supplierByCode('osec');
+        $result   = self::upsert($supplier, $items, 'osec', true);
+
+        // Nettoprijs ontbreekt in deze lijst: oude nettoprijzen niet laten staan
+        if ($cNet === null) {
+            model(ProductModel::class)->where('supplier_id', $supplier['id'])->where('source', 'osec')->set(['cost_price' => null])->update();
+        }
+
+        return $result + ['net' => $cNet !== null, 'total' => count($items)];
     }
 
     /**
@@ -204,7 +249,8 @@ class Catalog
             if ($sku === '' || trim((string) $it['name']) === '') {
                 continue;
             }
-            $row = array_filter($it, static fn ($v) => $v !== null) + ['source' => $source, 'active' => 1, 'last_seen_at' => $now];
+            $row = array_filter($it, static fn ($v, $k) => $v !== null || in_array($k, ['cost_price', 'list_price'], true), ARRAY_FILTER_USE_BOTH)
+                + ['source' => $source, 'active' => 1, 'last_seen_at' => $now];
             $row['name'] = mb_substr(trim($row['name']), 0, 500);
             if (! empty($it['group_name'])) {
                 $groups[$it['group_name']] = true;

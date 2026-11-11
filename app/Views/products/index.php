@@ -20,7 +20,7 @@
             <div>
                 <div class="fw-semibold"><?= esc($s['name']) ?> <span class="badge text-bg-light"><?= (int) ($counts[$s['id']] ?? 0) ?> producten</span></div>
                 <div class="small text-muted">
-                    <?= $s['code'] === 'osec' ? 'Bruto prijslijst, korting standaard ' . aantal($s['default_discount']) . '%' : 'Productfeed met jouw inkoopprijs' ?>
+                    <?= $s['code'] === 'osec' ? 'Prijslijst met jouw nettoprijs (anders bruto − ' . aantal($s['default_discount']) . '%)' : 'Productfeed met jouw inkoopprijs' ?>
                     · opslag ×<?= rtrim(rtrim(number_format((float) $s['default_markup'], 3, ',', ''), '0'), ',') ?>
                     <?= $s['last_import_at'] ? '· bijgewerkt ' . date('d-m-Y H:i', strtotime($s['last_import_at'])) : '' ?>
                 </div>
