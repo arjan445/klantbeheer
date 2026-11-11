@@ -63,7 +63,7 @@ $manage = user_can('billing.manage');
     </div>
     <div class="card-body p-0">
     <table class="table table-sm align-middle mb-0">
-        <thead><tr><th>Product (DSD)</th><th class="text-end">Bij DSD</th><th class="text-end">Inkoop</th><th>Verlengt</th><th>Gekoppeld abonnement</th><th class="text-end">Gefactureerd</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Product (DSD)</th><th class="text-end">Bij DSD</th><th class="text-end">Inkoop</th><th title="Verlengdatum bij DSD; staat los van jouw factuurdatum">Verlengt bij DSD</th><th>Gekoppeld abonnement</th><th class="text-end">Gefactureerd</th><th>Status</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($g['items'] as $i) : ?>
             <?php [$label, $color] = DsdLicenses::CHECKS[$i['check']]; ?>

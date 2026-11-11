@@ -129,7 +129,8 @@ class DsdLicenses extends BaseController
                 'quantity'          => (int) $item['quantity'] ?: 1,
                 'interval_months'   => $interval,
                 'start_date'        => date('Y-m-d'),
-                'next_invoice_date' => $item['renewal_date'] ?: date('Y-m-d'),
+                // Eigen factuurdatum, los van de verlengdatum bij DSD (die lopen bewust niet gelijk)
+                'next_invoice_date' => date('Y-m-d'),
                 'status'            => 'active',
                 'dsd_item_key'      => $item['item_key'],
                 'purchase_price'    => Dsd::purchaseFor($item, $interval),
