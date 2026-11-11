@@ -16,13 +16,13 @@ $subLink = static function (array $s): string {
         <?php [$label, $color] = Domains::STATUSES[$d['status']]; ?>
         <tr>
             <td class="fw-semibold"><a href="https://<?= esc($d['name'], 'attr') ?>" target="_blank" rel="noopener noreferrer" class="text-decoration-none"><?= esc($d['name']) ?> <i class="bi bi-box-arrow-up-right small"></i></a></td>
-            <?php if ($showCustomer) : ?><td><a href="<?= site_url('klanten/' . $d['customer_id']) ?>"><?= esc($d['customer_name']) ?></a></td><?php endif ?>
+            <?php if ($showCustomer) : ?><td><a href="<?= site_url('klanten/' . $d['customer_id']) ?>"><?= esc($d['customer_name']) ?></a><?= ! empty($d['customer_internal']) ? ' <span class="badge text-bg-info">eigen</span>' : '' ?></td><?php endif ?>
             <td><?php foreach ($d['registration'] as $s) : ?><div><?= $subLink($s) ?></div><?php endforeach ?>
                 <?php if ($d['registration'] === []) : ?><span class="text-muted small"><?= $d['registrar'] ? 'extern: ' . esc($d['registrar']) : '—' ?></span><?php endif ?></td>
             <td><?php foreach ($d['hosting'] as $s) : ?><div><?= $subLink($s) ?></div><?php endforeach ?>
                 <?php if ($d['hosting'] === []) : ?><span class="text-muted small">—</span><?php endif ?></td>
             <td class="small"><?php foreach ($d['other'] as $s) : ?><div><?= $subLink($s) ?></div><?php endforeach ?></td>
-            <td class="text-end"><?= $d['yearly'] > 0 ? euro($d['yearly']) : '' ?></td>
+            <td class="text-end"><?= ! empty($d['customer_internal']) ? '<span class="small text-muted">eigen</span>' : ($d['yearly'] > 0 ? euro($d['yearly']) : '') ?></td>
             <td><span class="badge text-bg-<?= $color ?>"><?= esc($label) ?></span></td>
             <td class="text-end text-nowrap">
                 <?php if (user_can('billing.manage')) : ?>

@@ -77,7 +77,8 @@ class Customers extends BaseController
             return $this->page('customers/form', ['customer' => $post, 'validation' => true], 'Nieuwe klant');
         }
 
-        $post['active'] = $this->request->getPost('active') ? 1 : 0;
+        $post['active']   = $this->request->getPost('active') ? 1 : 0;
+        $post['internal'] = $this->request->getPost('internal') ? 1 : 0;
         $id = model(CustomerModel::class)->insert($post);
 
         // Meteen een eerste locatie op het klantadres
@@ -107,7 +108,8 @@ class Customers extends BaseController
             return $this->page('customers/form', ['customer' => $post + ['id' => $id], 'validation' => true], 'Klant bewerken');
         }
 
-        $post['active'] = $this->request->getPost('active') ? 1 : 0;
+        $post['active']   = $this->request->getPost('active') ? 1 : 0;
+        $post['internal'] = $this->request->getPost('internal') ? 1 : 0;
         model(CustomerModel::class)->update($id, $post);
 
         return $this->back('Klant opgeslagen.', 'message', site_url('klanten/' . $id));

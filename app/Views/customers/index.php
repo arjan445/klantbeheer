@@ -10,7 +10,7 @@
     <tbody>
     <?php foreach ($customers as $c) : ?>
         <tr class="<?= $c['active'] ? '' : 'text-muted' ?>">
-            <td><a href="<?= site_url('klanten/' . $c['id']) ?>" class="fw-semibold"><?= esc($c['name']) ?></a><?= $c['active'] ? '' : ' <span class="badge text-bg-secondary">inactief</span>' ?></td>
+            <td><a href="<?= site_url('klanten/' . $c['id']) ?>" class="fw-semibold"><?= esc($c['name']) ?></a><?= $c['active'] ? '' : ' <span class="badge text-bg-secondary">inactief</span>' ?><?= ! empty($c['internal']) ? ' <span class="badge text-bg-info">eigen gebruik</span>' : '' ?></td>
             <td><?= esc($c['contact_name']) ?></td>
             <td><?= esc($c['city']) ?></td>
             <td><?= esc($c['phone']) ?></td>

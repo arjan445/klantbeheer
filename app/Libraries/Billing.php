@@ -31,6 +31,7 @@ class Billing
 
         $model = model(SubscriptionModel::class)->withDetails()
             ->where('subscriptions.status', 'active')
+            ->where('customers.internal', 0)
             ->where('subscriptions.next_invoice_date <=', $until)
             ->groupStart()
                 ->where('subscriptions.end_date', null)
@@ -99,6 +100,9 @@ class Billing
         $customer = model(CustomerModel::class)->find($customerId);
         if ($customer === null) {
             throw new RuntimeException('Klant niet gevonden.');
+        }
+        if (! empty($customer['internal'])) {
+            throw new RuntimeException('Dit is een klant voor eigen gebruik; die wordt niet gefactureerd.');
         }
 
         $subs = model(SubscriptionModel::class)->withDetails()

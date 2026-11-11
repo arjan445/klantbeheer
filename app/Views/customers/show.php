@@ -2,7 +2,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
     <div>
         <a href="<?= site_url('klanten') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Klanten</a>
-        <h3 class="mb-0"><?= esc($c['name']) ?> <?= $c['active'] ? '' : '<span class="badge text-bg-secondary fs-6 align-middle">inactief</span>' ?></h3>
+        <h3 class="mb-0"><?= esc($c['name']) ?> <?= $c['active'] ? '' : '<span class="badge text-bg-secondary fs-6 align-middle">inactief</span>' ?><?= ! empty($c['internal']) ? ' <span class="badge text-bg-info fs-6 align-middle">eigen gebruik</span>' : '' ?></h3>
     </div>
     <div class="d-flex gap-2">
         <?php if (user_can('customers.manage')) : ?>
@@ -20,11 +20,15 @@
         <?php if ($c['email']) : ?><div><i class="bi bi-envelope"></i> <a href="mailto:<?= esc($c['email'], 'attr') ?>"><?= esc($c['email']) ?></a></div><?php endif ?>
         <?php if ($c['phone']) : ?><div><i class="bi bi-telephone"></i> <a href="tel:<?= esc($c['phone'], 'attr') ?>"><?= esc($c['phone']) ?></a></div><?php endif ?>
         <?php if ($c['address'] || $c['city']) : ?><div><i class="bi bi-geo-alt"></i> <?= esc(trim($c['address'] . ', ' . $c['zipcode'] . ' ' . $c['city'], ', ')) ?></div><?php endif ?>
+        <?php if (! empty($c['internal'])) : ?>
+        <div class="mt-2 text-info"><i class="bi bi-house"></i> Eigen gebruik: wordt niet gefactureerd</div>
+        <?php else : ?>
         <div class="mt-2"><?= $c['moneybird_contact_id'] ? '<span class="text-success"><i class="bi bi-link-45deg"></i> Gekoppeld aan Moneybird</span>' : '<span class="text-warning"><i class="bi bi-exclamation-circle"></i> Niet gekoppeld aan Moneybird</span>' ?></div>
+        <?php endif ?>
     </div></div></div>
     <?php if (isset($yearly)) : ?>
     <div class="col-md-4"><div class="card h-100 kpi"><div class="card-body">
-        <div class="label">Abonnementen per jaar (excl. btw)</div><div class="value"><?= euro($yearly) ?></div>
+        <div class="label"><?= ! empty($c['internal']) ? 'Waarde per jaar (eigen gebruik, geen omzet)' : 'Abonnementen per jaar (excl. btw)' ?></div><div class="value"><?= euro($yearly) ?></div>
     </div></div></div>
     <?php endif ?>
     <?php if ($c['notes']) : ?>

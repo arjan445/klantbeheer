@@ -48,8 +48,10 @@ class CostPools
         foreach (model(CostPoolModel::class)->findAll() as $pool) {
             $linked = $db->table('services')
                 ->select('services.id, services.name, services.interval_months, services.cost_weight, services.price, services.unit,
-                    COALESCE(SUM(CASE WHEN subscriptions.status = \'active\' THEN subscriptions.quantity ELSE 0 END), 0) AS units')
+                    COALESCE(SUM(CASE WHEN subscriptions.status = \'active\' THEN subscriptions.quantity ELSE 0 END), 0) AS units,
+                    COALESCE(SUM(CASE WHEN subscriptions.status = \'active\' AND customers.internal = 1 THEN subscriptions.quantity ELSE 0 END), 0) AS own_units')
                 ->join('subscriptions', 'subscriptions.service_id = services.id', 'left')
+                ->join('customers', 'customers.id = subscriptions.customer_id', 'left')
                 ->where('services.cost_pool_id', $pool['id'])
                 ->groupBy('services.id, services.name, services.interval_months, services.cost_weight, services.price, services.unit')
                 ->get()->getResultArray();

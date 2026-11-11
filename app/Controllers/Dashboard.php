@@ -19,9 +19,16 @@ class Dashboard extends BaseController
         if (user_can('billing.view')) {
             $subs = model(SubscriptionModel::class)->withDetails()->where('subscriptions.status', 'active')->findAll();
 
-            $revenue = $cost = 0.0;
+            $revenue = $cost = $ownCost = 0.0;
             $byType  = [];
+            $own     = 0;
             foreach ($subs as $s) {
+                if (! empty($s['customer_internal'])) {
+                    // Eigen gebruik: geen omzet, wel kosten
+                    $own++;
+                    $ownCost += $s['eff_purchase'] === null ? 0.0 : BillingLib::yearly($s, 'eff_purchase');
+                    continue;
+                }
                 $r = BillingLib::yearly($s);
                 $c = $s['eff_purchase'] === null ? 0.0 : BillingLib::yearly($s, 'eff_purchase');
                 $revenue += $r;
@@ -37,7 +44,9 @@ class Dashboard extends BaseController
             $due   = BillingLib::due(60);
 
             $data += [
-                'activeSubs' => count($subs),
+                'activeSubs' => count($subs) - $own,
+                'ownSubs'    => $own,
+                'ownCost'    => $ownCost,
                 'revenue'    => $revenue,
                 'cost'       => $cost,
                 'byType'     => $byType,

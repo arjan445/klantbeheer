@@ -11,7 +11,7 @@ $today = date('Y-m-d');
     <?php foreach ($subscriptions as $s) : ?>
         <?php $overdue = $s['status'] === 'active' && $s['next_invoice_date'] < $today; ?>
         <tr class="<?= $s['status'] !== 'active' ? 'text-muted' : '' ?> <?= $overdue ? 'row-overdue' : '' ?>">
-            <?php if ($showCustomer) : ?><td><a href="<?= site_url('klanten/' . $s['customer_id']) ?>"><?= esc($s['customer_name']) ?></a></td><?php endif ?>
+            <?php if ($showCustomer) : ?><td><a href="<?= site_url('klanten/' . $s['customer_id']) ?>"><?= esc($s['customer_name']) ?></a><?= ! empty($s['customer_internal']) ? ' <span class="badge text-bg-info">eigen</span>' : '' ?></td><?php endif ?>
             <td><span class="badge badge-type"><?= esc(service_type_label($s['service_type'])) ?></span> <?= esc($s['service_name']) ?></td>
             <td><?php if (! empty($s['domain_name'])) : ?><a href="<?= site_url('domeinen/' . $s['domain_id'] . '/bewerken') ?>" class="mono text-decoration-none"><?= esc($s['domain_name']) ?></a> <?php endif ?><?= esc($s['label']) ?><?php if ($s['site_name']) : ?> <span class="small text-muted">· <?= esc($s['site_name']) ?></span><?php endif ?></td>
             <td class="text-end"><?= aantal($s['quantity']) ?></td>

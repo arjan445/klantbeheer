@@ -12,8 +12,9 @@
         <div class="label">Omzet per jaar (excl. btw)</div><div class="value"><?= euro($revenue) ?></div>
     </div></div></div>
     <div class="col-6 col-lg"><div class="card kpi"><div class="card-body">
-        <div class="label">Marge per jaar</div><div class="value"><?= euro($revenue - $cost) ?></div>
-        <?php if ($revenue > 0) : ?><div class="small text-muted"><?= round(($revenue - $cost) / $revenue * 100) ?>% van de omzet</div><?php endif ?>
+        <div class="label">Marge per jaar</div><div class="value"><?= euro($revenue - $cost - $ownCost) ?></div>
+        <?php if ($revenue > 0) : ?><div class="small text-muted"><?= round(($revenue - $cost - $ownCost) / $revenue * 100) ?>% van de omzet</div><?php endif ?>
+        <?php if ($ownSubs > 0) : ?><div class="small text-muted">incl. <?= euro($ownCost) ?> kosten eigen gebruik (<?= (int) $ownSubs ?> abonnementen)</div><?php endif ?>
     </div></div></div>
     <div class="col-6 col-lg"><a class="text-decoration-none" href="<?= site_url('facturatie') ?>"><div class="card kpi"><div class="card-body">
         <div class="label">Te factureren</div>

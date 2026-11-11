@@ -18,6 +18,7 @@
         <div class="col-md-6 d-flex align-items-end">
             <div>
                 <div class="form-check"><input class="form-check-input" type="checkbox" name="active" value="1" id="active" <?= ($c['active'] ?? 1) ? 'checked' : '' ?>><label class="form-check-label" for="active">Actieve klant</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" name="internal" value="1" id="internal" <?= ! empty($c['internal']) ? 'checked' : '' ?>><label class="form-check-label" for="internal">Eigen gebruik <span class="text-muted small">(bijhouden, maar nooit factureren en niet als omzet tellen)</span></label></div>
                 <?php if ($isNew) : ?>
                 <div class="form-check"><input class="form-check-input" type="checkbox" name="create_site" value="1" id="cs" checked><label class="form-check-label" for="cs">Maak meteen een locatie "Hoofdlocatie" op dit adres</label></div>
                 <?php endif ?>

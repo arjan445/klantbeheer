@@ -27,7 +27,7 @@ class Domains extends BaseController
      */
     public static function overview(?int $customerId = null): array
     {
-        $domains = model(DomainModel::class)->select('domains.*, customers.name AS customer_name')
+        $domains = model(DomainModel::class)->select('domains.*, customers.name AS customer_name, customers.internal AS customer_internal')
             ->join('customers', 'customers.id = domains.customer_id');
         if ($customerId !== null) {
             $domains->where('domains.customer_id', $customerId);

@@ -21,7 +21,7 @@ class SubscriptionModel extends Model
                 services.moneybird_product_id, services.tax_rate_id,
                 COALESCE(subscriptions.price, services.price) AS eff_price,
                 COALESCE(subscriptions.purchase_price, services.purchase_price) AS eff_purchase,
-                customers.name AS customer_name, customers.moneybird_contact_id, sites.name AS site_name, domains.name AS domain_name')
+                customers.name AS customer_name, customers.moneybird_contact_id, customers.internal AS customer_internal, sites.name AS site_name, domains.name AS domain_name')
             ->join('services', 'services.id = subscriptions.service_id')
             ->join('customers', 'customers.id = subscriptions.customer_id')
             ->join('sites', 'sites.id = subscriptions.site_id', 'left')

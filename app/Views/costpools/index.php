@@ -59,7 +59,7 @@
                             <?php $per = interval_label((int) $s['interval_months']); ?>
                             <tr>
                                 <td><?= esc($s['name']) ?></td>
-                                <td class="text-end"><?= aantal($s['units']) ?></td>
+                                <td class="text-end"><?= aantal($s['units']) ?><?php if ((float) $s['own_units'] > 0) : ?><div class="small text-muted">waarvan <?= aantal($s['own_units']) ?> eigen</div><?php endif ?></td>
                                 <td class="text-end"><?= aantal($s['cost_weight']) ?></td>
                                 <td class="text-end text-nowrap"><?= $s['purchase'] !== null ? euro($s['purchase']) . '<span class="small text-muted"> / ' . esc($per) . '</span>' : '<span class="text-muted small">geen abonnementen</span>' ?></td>
                                 <td class="text-end"><?= euro($s['price']) ?></td>
@@ -72,7 +72,7 @@
                         <?php endforeach ?>
                     </table>
                     <?php if ($c['units'] > 0) : ?>
-                        <?php $sell = array_sum(array_map(static fn ($s) => $s['price'] * 12 / max(1, (int) $s['interval_months']) * $s['units'], $c['services'])); ?>
+                        <?php $sell = array_sum(array_map(static fn ($s) => $s['price'] * 12 / max(1, (int) $s['interval_months']) * ($s['units'] - $s['own_units']), $c['services'])); ?>
                         <div class="small">Omzet uit deze diensten: <strong><?= euro($sell) ?></strong> per jaar · kosten <strong><?= euro($c['yearly']) ?></strong> · resultaat <strong class="<?= $sell < $c['yearly'] ? 'text-danger' : 'text-success' ?>"><?= euro($sell - $c['yearly']) ?></strong></div>
                     <?php endif ?>
                     <?php endif ?>
