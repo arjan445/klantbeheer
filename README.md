@@ -6,7 +6,7 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
 - **Diensten**: de catalogus, bijvoorbeeld Microsoft 365 per gebruiker, webhosting per domein, domeinnaam, Elementor Pro of andere plugins. Per dienst leg je de verkoopprijs, inkoopprijs, leverancier en periode vast.
 - **Abonnementen**: welke klant welke dienst afneemt, hoeveel, voor welk domein of welke tenant, en wanneer de volgende factuur moet komen. Per abonnement kun je een afwijkende prijs instellen.
 - **Facturatie**: een overzicht van wat de komende *x* dagen verlengd wordt, gegroepeerd per klant. Met één klik maak je een **conceptfactuur in Moneybird**, met per regel de periode erbij. Daarna schuift het abonnement automatisch een periode op. Je kunt ook handmatig als gefactureerd markeren.
-- **Kostprijzen**: kostenpools tellen je inkoopfacturen en bonnetjes uit Moneybird op over de laatste 12 maanden. Welke inkoop meetelt, bepaal je met regels: per leverancier (bijv. Hetzner, Plesk), per zoekwoord (bijv. "vps") en/of per categorie. Daarna kun je elke inkoopregel nog los aan- of uitvinken. Dat bedrag wordt verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht. De uitkomst wordt automatisch de inkoopprijs van die diensten.
+- **Kostprijzen**: per kostenpool (bijv. Hostingplatform) vul je de vaste kosten per leverancier in, per maand of per jaar (Hetzner VPS, Plesk-licentie, Imunify…). De jaarkosten worden verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht, en worden automatisch de inkoopprijs van die diensten.
 - **Dashboard**: omzet en marge per jaar, uitgesplitst per soort dienst, plus de verlengingen van de komende 60 dagen.
 - **Kluis**: apparaten (camera's, recorders, switches, AP's, routers), IP-adressen, MAC- en serienummers en **wachtwoorden per klant en locatie**.
   - Wachtwoorden en geheime notities (zoals de Hik-Connect-verificatiecode of de wifi-sleutel) worden **versleuteld** opgeslagen met AES-256 en HMAC.
@@ -37,7 +37,7 @@ Zet de webroot van de (sub)domein op de map `public/`.
 
 ### Moneybird
 
-1. Ga in Moneybird naar **Instellingen › Ontwikkelaars › Persoonlijke API-token**. Geef het token de rechten *Verkoopfacturen*, *Contacten*, *Documenten* (voor de inkoop bij Kostprijzen) en *Instellingen*.
+1. Ga in Moneybird naar **Instellingen › Ontwikkelaars › Persoonlijke API-token**. Geef het token de rechten *Verkoopfacturen*, *Contacten* en *Instellingen*.
 2. Zet in `.env` de waarden `moneybird.token` en `moneybird.administrationId`. Het administratie-ID is het getal in de URL: `moneybird.com/<ID>/…`.
 3. Open in de app **Beheer › Moneybird**:
    - Je ziet de btw-tarieven. Zet het ID van 21% in `moneybird.taxRateId`.
@@ -55,20 +55,11 @@ Vul de `email.*`-instellingen in `.env` in en voeg een cronjob toe:
 
 Elke maandag krijgen de admins dan een mail met wat er binnenkort gefactureerd moet worden.
 
-### Kostprijzen elke nacht bijwerken (optioneel)
-
-```
-15 3 * * *  cd /pad/naar/klantbeheer && php spark klantbeheer:kosten
-```
-
-Je kunt ook op **Kostprijzen** op *Ophalen uit Moneybird* klikken.
-
 ## Hoe kostprijzen werken
 
-1. **Ophalen uit Moneybird** haalt alle inkoopfacturen en bonnetjes van de afgelopen 12 maanden op (of langer, als een pool dat nodig heeft) en bewaart de regels lokaal.
-2. Een kostenpool, bijvoorbeeld **Hostingplatform**, telt een inkoopregel mee als die voldoet aan één van deze regels: de gekozen **leverancier**, een **zoekwoord** in de omschrijving of referentie, of de gekozen **categorie**. Onder *Inkoopregels* kun je per regel een vinkje zetten of weghalen; dat blijft bewaard, ook na een nieuwe keer ophalen. Het totaal (excl. btw) wordt omgerekend naar een jaarbedrag, vermenigvuldigd met het toerekenpercentage, plus eventuele extra kosten die je met de hand invult.
-3. Die jaarkosten worden verdeeld over de actieve abonnementen van de gekoppelde diensten, naar aantal × gewicht. Als Pro gewicht 2 heeft, draagt een Pro-pakket dubbel zoveel als een Basis-pakket.
-4. De kostprijs per stuk wordt opgeslagen als inkoopprijs van de dienst. Komen er klanten bij, dan daalt de kostprijs per stuk vanzelf.
+1. Maak een kostenpool aan, bijvoorbeeld **Hostingplatform**, en vul de kostenposten in: leverancier, omschrijving, bedrag excl. btw, en of het bedrag per maand of per jaar is.
+2. Vink de diensten aan die deze kosten dragen. Een dienst met gewicht 2, bijvoorbeeld *Webhosting Pro*, draagt per stuk dubbel zoveel als een dienst met gewicht 1.
+3. Kostprijs per stuk = jaarkosten ÷ (aantal actieve abonnementen × gewicht). Dat bedrag wordt automatisch de inkoopprijs van de dienst. Komen er klanten bij, dan daalt de kostprijs per stuk vanzelf.
 
 ## Hoe facturatie werkt
 
