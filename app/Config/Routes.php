@@ -110,6 +110,7 @@ $routes->group('offertes', ['filter' => 'can:billing.view'], static function ($r
     $routes->post('(:num)/kopie', [Quotes::class, 'copy/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/prijzen', [Quotes::class, 'refreshPrices/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Quotes::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
+    $routes->post('verwijderen', [Quotes::class, 'deleteBulk'], ['filter' => 'can:billing.manage']);
 });
 
 // Facturatie

@@ -29,3 +29,11 @@ if (! function_exists('post_link')) {
             . '</form>';
     }
 }
+
+if (! function_exists('klantmodus')) {
+    /** Klantmodus aan? Dan worden inkoopprijzen, marges en leveranciers verborgen (cookie per browser). */
+    function klantmodus(): bool
+    {
+        return ($_COOKIE['klantmodus'] ?? '') === '1';
+    }
+}

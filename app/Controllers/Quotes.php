@@ -452,12 +452,70 @@ class Quotes extends BaseController
         return $this->back($n . ' regel(s) bijgewerkt naar de actuele prijzen.', 'message', site_url('offertes/' . $id));
     }
 
+    /** Eén offerte verwijderen (vanuit de offerte zelf) */
     public function delete($id)
     {
         $this->findOr404(QuoteModel::class, $id);
-        model(QuoteLineModel::class)->where('quote_id', $id)->delete();
-        model(QuoteModel::class)->delete($id);
 
-        return $this->back('Offerte verwijderd.', 'message', site_url('offertes'));
+        return $this->deleteMany([(int) $id]);
+    }
+
+    /** Meerdere offertes verwijderen (vanuit het overzicht) */
+    public function deleteBulk()
+    {
+        $ids = array_values(array_filter(array_map('intval', (array) $this->request->getPost('ids'))));
+        if ($ids === []) {
+            return $this->back('Geen offertes geselecteerd.', 'error', site_url('offertes'));
+        }
+
+        return $this->deleteMany($ids);
+    }
+
+    /**
+     * Offertes + regels verwijderen. Optioneel ook de gekoppelde offerte in Moneybird,
+     * maar alleen als die daar nog concept is. Apparaten die uit de offerte zijn
+     * aangemaakt blijven gewoon bestaan.
+     */
+    private function deleteMany(array $ids)
+    {
+        $alsoMb = (bool) $this->request->getPost('moneybird');
+        $mb     = new Moneybird();
+        $quotes = model(QuoteModel::class)->whereIn('id', $ids)->findAll();
+        $kept   = [];
+        $mbDone = 0;
+
+        foreach ($quotes as $q) {
+            if ($alsoMb && $q['moneybird_estimate_id'] && $mb->configured()) {
+                try {
+                    $est = $mb->getEstimate($q['moneybird_estimate_id']);
+                    if ($est !== null && ($est['state'] ?? '') !== 'draft') {
+                        $kept[] = ($q['moneybird_number'] ?: '#' . $q['id']) . ' (' . self::mbState((string) $est['state']) . ')';
+                    } elseif ($est !== null) {
+                        $mb->deleteEstimate($q['moneybird_estimate_id']);
+                        $mbDone++;
+                    }
+                } catch (Throwable $e) {
+                    $kept[] = ($q['moneybird_number'] ?: '#' . $q['id']) . ' (' . $e->getMessage() . ')';
+                }
+            }
+
+            $lineIds = array_column(model(QuoteLineModel::class)->select('id')->where('quote_id', $q['id'])->findAll(), 'id');
+            if ($lineIds !== []) {
+                model(DeviceModel::class)->whereIn('quote_line_id', $lineIds)->set('quote_line_id', null)->update();
+                model(QuoteLineModel::class)->whereIn('id', $lineIds)->delete();
+            }
+            model(QuoteModel::class)->delete($q['id']);
+        }
+
+        $n   = count($quotes);
+        $msg = ($n === 1 ? 'Offerte' : $n . ' offertes') . ' verwijderd.';
+        if ($mbDone > 0) {
+            $msg .= ' ' . $mbDone . ' concept(en) ook in Moneybird verwijderd.';
+        }
+        if ($kept !== []) {
+            $msg .= ' Niet verwijderd in Moneybird (niet meer concept, doe dat daar zelf): ' . implode(', ', $kept) . '.';
+        }
+
+        return $this->back($msg, $kept !== [] ? 'error' : 'message', site_url('offertes'));
     }
 }

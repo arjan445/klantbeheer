@@ -18,7 +18,7 @@
     <div class="col-6 col-lg"><div class="card kpi"><div class="card-body">
         <div class="label">Omzet per jaar (excl. btw)</div><div class="value"><?= euro($revenue) ?></div>
     </div></div></div>
-    <div class="col-6 col-lg"><div class="card kpi"><div class="card-body">
+    <div class="col-6 col-lg km-hide"><div class="card kpi"><div class="card-body">
         <div class="label">Marge per jaar</div><div class="value"><?= euro($revenue - $cost - $ownCost) ?></div>
         <?php if ($revenue > 0) : ?><div class="small text-muted"><?= round(($revenue - $cost - $ownCost) / $revenue * 100) ?>% van de omzet</div><?php endif ?>
         <?php if ($ownSubs > 0) : ?><div class="small text-muted">incl. <?= euro($ownCost) ?> kosten eigen gebruik (<?= (int) $ownSubs ?> abonnementen)</div><?php endif ?>
@@ -71,14 +71,14 @@
             <div class="card-header">Per soort dienst (per jaar)</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Soort</th><th class="text-end">Aantal</th><th class="text-end">Omzet</th><th class="text-end">Marge</th></tr></thead>
+                    <thead><tr><th>Soort</th><th class="text-end">Aantal</th><th class="text-end">Omzet</th><th class="text-end km-hide">Marge</th></tr></thead>
                     <tbody>
                     <?php foreach ($byType as $type => $t) : ?>
                         <tr>
                             <td><?= esc(service_type_label($type)) ?></td>
                             <td class="text-end"><?= aantal($t['qty']) ?></td>
                             <td class="text-end"><?= euro($t['revenue']) ?></td>
-                            <td class="text-end"><?= euro($t['revenue'] - $t['cost']) ?></td>
+                            <td class="text-end km-hide"><?= euro($t['revenue'] - $t['cost']) ?></td>
                         </tr>
                     <?php endforeach ?>
                     <?php if ($byType === []) : ?><tr><td colspan="4" class="text-muted">Nog geen abonnementen.</td></tr><?php endif ?>

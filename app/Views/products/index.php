@@ -2,18 +2,18 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h3 class="mb-0">Producten</h3>
-        <div class="text-muted small">Catalogus voor offertes. Kostprijs × opslag = verkoopprijs.</div>
+        <div class="text-muted small km-hide">Catalogus voor offertes. Kostprijs × opslag = verkoopprijs.</div>
     </div>
     <?php if ($manage) : ?>
     <div class="d-flex gap-2 flex-wrap">
-        <a href="<?= site_url('producten/leveranciers') ?>" class="btn btn-outline-secondary"><i class="bi bi-sliders"></i> Leveranciers &amp; marges</a>
+        <a href="<?= site_url('producten/leveranciers') ?>" class="btn btn-outline-secondary km-hide"><i class="bi bi-sliders"></i> Leveranciers &amp; marges</a>
         <a href="<?= site_url('producten/nieuw') ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Los product</a>
     </div>
     <?php endif ?>
 </div>
 
 <?php if ($manage) : ?>
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3 km-hide">
     <?php foreach ($suppliers as $s) : ?>
         <?php if (! in_array($s['code'], ['osec', 'wimood'], true)) continue; ?>
         <div class="col-md-6"><div class="card h-100"><div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -42,7 +42,7 @@
 
 <form method="get" class="d-flex gap-2 mb-3 flex-wrap">
     <input type="search" name="q" value="<?= esc($q) ?>" class="form-control" style="max-width: 420px" placeholder="Zoek op naam, artikel-/typenummer, merk of groep, bijv. 'u6 pro' of 'ajax hub'" autofocus>
-    <select name="leverancier" class="form-select" style="max-width: 200px" onchange="this.form.submit()">
+    <select name="leverancier" class="form-select km-hide" style="max-width: 200px" onchange="this.form.submit()">
         <option value="">Alle leveranciers</option>
         <?php foreach ($suppliers as $s) : ?><option value="<?= $s['id'] ?>" <?= $supplier === (int) $s['id'] ? 'selected' : '' ?>><?= esc($s['name']) ?></option><?php endforeach ?>
     </select>
@@ -51,18 +51,18 @@
 
 <div class="card"><div class="card-body p-0">
 <table class="table table-sm table-hover mb-0 align-middle">
-    <thead><tr><th>Product</th><th>Leverancier</th><th>Groep</th><th class="text-end">Bruto / advies</th><th class="text-end">Kostprijs</th><th class="text-end">Opslag</th><th class="text-end">Verkoop</th><th></th></tr></thead>
+    <thead><tr><th>Product</th><th class="km-hide">Leverancier</th><th class="km-hide">Groep</th><th class="text-end">Bruto / advies</th><th class="text-end km-hide">Kostprijs</th><th class="text-end km-hide">Opslag</th><th class="text-end">Verkoop</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($products as $p) : ?>
         <?php $pr = Catalog::price($p); ?>
         <tr class="<?= $p['active'] ? '' : 'text-muted' ?>">
             <td><?= esc($p['name']) ?>
                 <div class="small text-muted mono"><?= esc($p['sku'] ?: '') ?><?= $p['sku'] && $p['supplier_sku'] ? ' · ' : '' ?><?= esc($p['source'] === 'manual' ? '' : '#' . $p['supplier_sku']) ?><?= $p['info'] ? ' · <span class="text-warning">' . esc($p['info']) . '</span>' : '' ?></div></td>
-            <td class="small"><?= esc($p['supplier_name']) ?></td>
-            <td class="small"><?= esc($p['group_name']) ?></td>
+            <td class="small km-hide"><?= esc($p['supplier_name']) ?></td>
+            <td class="small km-hide"><?= esc($p['group_name']) ?></td>
             <td class="text-end small"><?= $p['list_price'] !== null ? euro($p['list_price']) : '' ?></td>
-            <td class="text-end"><?= $pr['cost'] !== null ? euro($pr['cost']) : '—' ?></td>
-            <td class="text-end small">×<?= rtrim(rtrim(number_format($pr['markup'], 3, ',', ''), '0'), ',') ?></td>
+            <td class="text-end km-hide"><?= $pr['cost'] !== null ? euro($pr['cost']) : '—' ?></td>
+            <td class="text-end small km-hide">×<?= rtrim(rtrim(number_format($pr['markup'], 3, ',', ''), '0'), ',') ?></td>
             <td class="text-end fw-semibold"><?= $pr['sell'] !== null ? euro($pr['sell']) : '—' ?>
                 <?php if ($p['source'] === 'wimood' && $p['list_price'] !== null && $pr['sell'] !== null && $pr['sell'] > (float) $p['list_price']) : ?><div class="small text-warning fw-normal" title="Hoger dan de adviesprijs">&gt; advies</div><?php endif ?></td>
             <td class="text-end"><?php if ($manage) : ?><a href="<?= site_url('producten/' . $p['id'] . '/bewerken') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a><?php endif ?></td>

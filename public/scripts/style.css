@@ -79,3 +79,21 @@ body { background: #f4f5f9; }
     .dev-table { display: none; }
     .dev-cards { display: block; }
 }
+
+/* Selectiebalk (offertes verwijderen): altijd onderin vast */
+.sel-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; background: #fff; margin: 0;
+           padding: .6rem .75rem calc(.6rem + env(safe-area-inset-bottom)); border-top: 1px solid #dee2e6; box-shadow: 0 -2px 8px rgba(0,0,0,.08); }
+body:has(.sel-bar[style*="flex"]) { padding-bottom: 90px; }
+
+/* Klantmodus: inkoop, marges en leveranciers verbergen */
+.km-btn { color: rgba(255,255,255,.75); border: 1px solid rgba(255,255,255,.3); }
+.km-btn:hover { color: #fff; border-color: rgba(255,255,255,.6); }
+.km-btn.active { background: #ffc107; border-color: #ffc107; color: #1b1b1b; }
+.km-btn .km-label { display: none; }
+.km-btn.active .km-label { display: inline; }
+body.klantmodus .km-hide { display: none !important; }
+body.klantmodus .ql-head, body.klantmodus .ql { grid-template-columns: 24px 1fr 80px 110px 105px 64px; }
+@media (max-width: 767.98px) {
+    body.klantmodus .ql { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "desc desc actions" "qty sell total"; }
+    body.klantmodus .ql-text { grid-template-areas: "desc desc actions"; }
+}

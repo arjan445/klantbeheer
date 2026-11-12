@@ -21,6 +21,7 @@ $manage = user_can('billing.manage');
         <?php endif ?>
         <form method="post" action="<?= site_url('offertes/' . $quote['id'] . '/prijzen') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-outline-secondary" title="Prijzen van catalogusproducten bijwerken naar de actuele catalogus"><i class="bi bi-arrow-repeat"></i> Prijzen bijwerken</button></form>
         <form method="post" action="<?= site_url('offertes/' . $quote['id'] . '/kopie') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-copy"></i> Kopie</button></form>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteQuote" title="Offerte verwijderen"><i class="bi bi-trash"></i><span class="d-none d-sm-inline"> Verwijderen</span></button>
     </div>
     <?php endif ?>
 </div>
@@ -29,7 +30,7 @@ $manage = user_can('billing.manage');
 <div class="card mb-3"><div class="card-body">
     <div class="row g-2">
         <div class="col-md-8"><label class="form-label small">Omschrijving</label><input name="title" class="form-control" value="<?= esc($quote['title']) ?>"></div>
-        <div class="col-md-4"><label class="form-label small">Interne notitie</label><input name="notes" class="form-control" value="<?= esc($quote['notes'] ?? '') ?>" placeholder="Niet zichtbaar voor de klant"></div>
+        <div class="col-md-4 km-hide"><label class="form-label small">Interne notitie</label><input name="notes" class="form-control" value="<?= esc($quote['notes'] ?? '') ?>" placeholder="Niet zichtbaar voor de klant"></div>
     </div>
 </div></div>
 
@@ -45,8 +46,8 @@ $manage = user_can('billing.manage');
     <?php endif ?>
 
     <div class="ql-head d-none d-md-grid small text-muted fw-semibold">
-        <span></span><span>Omschrijving</span><span class="text-end">Aantal</span><span class="text-end">Kostprijs</span>
-        <span class="text-end">Verkoop</span><span class="text-end">Totaal</span><span class="text-end">Marge</span><span></span>
+        <span></span><span>Omschrijving</span><span class="text-end">Aantal</span><span class="text-end km-hide">Kostprijs</span>
+        <span class="text-end">Verkoop</span><span class="text-end">Totaal</span><span class="text-end km-hide">Marge</span><span></span>
     </div>
     <div id="lines" class="mb-3"></div>
 
@@ -66,8 +67,8 @@ $manage = user_can('billing.manage');
                 <tr><td>Totaal excl. btw</td><td class="text-end fw-semibold fs-5" id="t-sell"></td></tr>
                 <tr><td>Btw 21%</td><td class="text-end" id="t-vat"></td></tr>
                 <tr><td>Totaal incl. btw</td><td class="text-end" id="t-incl"></td></tr>
-                <tr class="text-muted"><td>Kostprijs</td><td class="text-end" id="t-cost"></td></tr>
-                <tr><td>Marge materiaal</td><td class="text-end fw-semibold" id="t-margin"></td></tr>
+                <tr class="text-muted km-hide"><td>Kostprijs</td><td class="text-end" id="t-cost"></td></tr>
+                <tr class="km-hide"><td>Marge materiaal</td><td class="text-end fw-semibold" id="t-margin"></td></tr>
                 <tr><td>Arbeid</td><td class="text-end" id="t-labor"></td></tr>
             </table>
         </div></div>
@@ -92,7 +93,7 @@ $manage = user_can('billing.manage');
 </div>
 </form>
 <?php if ($manage) : ?>
-<div class="mt-4"><?= post_link(site_url('offertes/' . $quote['id'] . '/verwijderen'), '<i class="bi bi-trash"></i> Offerte verwijderen', 'Offerte verwijderen?') ?></div>
+<?= view('quotes/_delete_modal', ['action' => site_url('offertes/' . $quote['id'] . '/verwijderen'), 'linked' => (bool) $quote['moneybird_estimate_id'], 'intro' => 'Offerte #' . $quote['id'] . ' "' . $quote['title'] . '" met alle regels verwijderen?']) ?>
 <?php endif ?>
 
 <template id="row-tpl">
@@ -104,10 +105,10 @@ $manage = user_can('billing.manage');
             <div class="small text-muted f-meta mt-1"></div>
         </div>
         <label class="ql-num ql-qty"><span class="ql-label">Aantal</span><input class="form-control form-control-sm text-end f-qty" inputmode="decimal" value="1"></label>
-        <label class="ql-num ql-cost"><span class="ql-label">Kostprijs</span><input class="form-control form-control-sm text-end f-cost" inputmode="decimal" placeholder="—"></label>
+        <label class="ql-num ql-cost km-hide"><span class="ql-label">Kostprijs</span><input class="form-control form-control-sm text-end f-cost" inputmode="decimal" placeholder="—"></label>
         <label class="ql-num ql-sell"><span class="ql-label">Verkoop</span><input class="form-control form-control-sm text-end f-sell" inputmode="decimal"></label>
         <div class="ql-total text-end"><span class="ql-label">Totaal</span><span class="f-total fw-semibold"></span></div>
-        <div class="ql-margin text-end small"><span class="f-margin"></span></div>
+        <div class="ql-margin text-end small km-hide"><span class="f-margin"></span></div>
         <div class="ql-actions text-end text-nowrap">
             <button type="button" class="btn btn-link btn-sm p-1 text-muted f-up" title="Omhoog"><i class="bi bi-arrow-up"></i></button>
             <button type="button" class="btn btn-link btn-sm p-1 text-danger f-del" title="Verwijderen"><i class="bi bi-x-lg"></i></button>
@@ -213,7 +214,7 @@ $manage = user_can('billing.manage');
     function render() {
         results.innerHTML = items.map((p, i) => '<button type="button" class="list-group-item list-group-item-action py-1' + (i === active ? ' active' : '') + '" data-i="' + i + '">' +
             '<div class="d-flex justify-content-between"><span>' + esc(p.name) + '</span><span class="fw-semibold text-nowrap ms-3">' + (p.sell !== null ? fmt.format(p.sell) : '—') + '</span></div>' +
-            '<div class="small ' + (i === active ? '' : 'text-muted') + '">' + esc([p.sku, p.supplier, p.group].filter(Boolean).join(' · ')) + (p.cost !== null ? ' · inkoop ' + fmt.format(p.cost) : '') + (p.advice ? ' · advies ' + fmt.format(p.advice) : '') + (p.info ? ' · ' + esc(p.info) : '') + '</div></button>').join('');
+            '<div class="small ' + (i === active ? '' : 'text-muted') + '">' + (document.body.classList.contains('klantmodus') ? esc(p.sku || '') : esc([p.sku, p.supplier, p.group].filter(Boolean).join(' · ')) + (p.cost !== null ? ' · inkoop ' + fmt.format(p.cost) : '')) + (p.advice ? ' · advies ' + fmt.format(p.advice) : '') + (p.info ? ' · ' + esc(p.info) : '') + '</div></button>').join('');
     }
     const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function pick(p) {

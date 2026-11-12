@@ -12,15 +12,34 @@
     <script src="<?= base_url('assets/bootstrap/bootstrap.bundle.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.bootstrap5.min.js') ?>"></script>
-    <link href="<?= base_url('scripts/style.css?ver=3') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=5') ?>" rel="stylesheet">
     <meta name="csrf-name" content="<?= csrf_token() ?>">
     <meta name="csrf-hash" content="<?= csrf_hash() ?>">
 </head>
-<body>
+<body class="<?= klantmodus() ? 'klantmodus' : '' ?>">
 <?php if (auth()->loggedIn()) : ?>
 <nav class="navbar navbar-expand-lg navbar-dark kb-nav">
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const b = document.getElementById('km-toggle');
+    if (!b) return;
+    b.addEventListener('click', () => {
+        const on = !document.body.classList.contains('klantmodus');
+        document.body.classList.toggle('klantmodus', on);
+        document.cookie = 'klantmodus=' + (on ? '1' : '0') + '; path=/; max-age=31536000; SameSite=Lax';
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.querySelector('i').className = 'bi ' + (on ? 'bi-eye-slash' : 'bi-eye');
+        document.dispatchEvent(new CustomEvent('klantmodus', { detail: on }));
+    });
+});
+</script>
     <div class="container-fluid">
         <a class="navbar-brand fw-semibold" href="<?= site_url('/') ?>"><i class="bi bi-buildings"></i> Klantbeheer</a>
+        <button type="button" id="km-toggle" class="btn btn-sm km-btn ms-auto ms-lg-2 me-2 me-lg-0 order-lg-last<?= klantmodus() ? ' active' : '' ?>"
+                title="Klantmodus: inkoopprijzen en marges verbergen" aria-pressed="<?= klantmodus() ? 'true' : 'false' ?>">
+            <i class="bi <?= klantmodus() ? 'bi-eye-slash' : 'bi-eye' ?>"></i><span class="km-label"> Klantmodus</span>
+        </button>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
         <div class="collapse navbar-collapse" id="nav">
             <ul class="navbar-nav me-auto">

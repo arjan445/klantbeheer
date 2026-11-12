@@ -176,6 +176,20 @@ class Moneybird
         ]);
     }
 
+    /** Offerte in Moneybird verwijderen; true als hij weg is (of al niet meer bestond) */
+    public function deleteEstimate(string $estimateId): bool
+    {
+        try {
+            $this->request('DELETE', 'estimates/' . rawurlencode($estimateId));
+        } catch (RuntimeException $e) {
+            if ($e->getCode() !== 404) {
+                throw $e;
+            }
+        }
+
+        return true;
+    }
+
     private function request(string $method, string $path, ?array $query = null, ?array $body = null): array
     {
         if (! $this->configured()) {
