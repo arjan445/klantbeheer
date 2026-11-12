@@ -97,3 +97,7 @@ body.klantmodus .ql-head, body.klantmodus .ql { grid-template-columns: 24px 1fr 
     body.klantmodus .ql { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "desc desc actions" "qty sell total"; }
     body.klantmodus .ql-text { grid-template-areas: "desc desc actions"; }
 }
+
+/* Plaatsing per stuk in offerteregels */
+.place-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .3rem; }
+@media (max-width: 767.98px) { .place-grid { grid-template-columns: 1fr 1fr; } .place-grid input { font-size: 16px; } }

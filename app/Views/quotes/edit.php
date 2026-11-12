@@ -96,13 +96,19 @@ $manage = user_can('billing.manage');
 <?= view('quotes/_delete_modal', ['action' => site_url('offertes/' . $quote['id'] . '/verwijderen'), 'linked' => (bool) $quote['moneybird_estimate_id'], 'intro' => 'Offerte #' . $quote['id'] . ' "' . $quote['title'] . '" met alle regels verwijderen?']) ?>
 <?php endif ?>
 
+<datalist id="placesList"><?php foreach (array_unique(array_merge(array_column($sites, 'name'), ['Kantine', 'Kantoor', 'Hal', 'Gang', 'Vergaderruimte', 'Keuken', 'Woonkamer', 'Magazijn', 'Werkplaats', 'Kleedkamer', 'Zolder', 'Buiten', 'Veld', 'Tribune', 'Bar', 'Serverruimte', 'Meterkast'])) as $pl) : ?><option value="<?= esc($pl, 'attr') ?>"><?php endforeach ?></datalist>
+
 <template id="row-tpl">
     <div class="ql">
         <div class="ql-handle text-muted" title="Slepen om te verplaatsen"><i class="bi bi-grip-vertical"></i></div>
         <div class="ql-desc">
-            <input type="hidden" class="f-type"><input type="hidden" class="f-product">
+            <input type="hidden" class="f-id"><input type="hidden" class="f-type"><input type="hidden" class="f-product">
             <textarea class="form-control form-control-sm f-desc" rows="1" placeholder="Omschrijving"></textarea>
             <div class="small text-muted f-meta mt-1"></div>
+            <div class="f-place mt-1 d-none">
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none f-place-btn"><i class="bi bi-geo-alt"></i> Plaatsing <span class="f-place-sum text-muted small"></span></button>
+                <div class="place-grid mt-1 d-none f-place-list"></div>
+            </div>
         </div>
         <label class="ql-num ql-qty"><span class="ql-label">Aantal</span><input class="form-control form-control-sm text-end f-qty" inputmode="decimal" value="1"></label>
         <label class="ql-num ql-cost km-hide"><span class="ql-label">Kostprijs</span><input class="form-control form-control-sm text-end f-cost" inputmode="decimal" placeholder="—"></label>
@@ -133,6 +139,7 @@ $manage = user_can('billing.manage');
         const name = k => 'lines[' + i + '][' + k + ']';
         f('.f-type').name = name('type'); f('.f-product').name = name('product_id'); f('.f-desc').name = name('description');
         f('.f-qty').name = name('quantity'); f('.f-cost').name = name('cost_price'); f('.f-sell').name = name('sell_price');
+        f('.f-id').name = name('id'); f('.f-id').value = l.id || '';
         f('.f-type').value = l.type; f('.f-product').value = l.product_id || '';
         f('.f-desc').value = l.description || ''; f('.f-qty').value = show(l.quantity ?? 1).replace(',00', '');
         f('.f-cost').value = show(l.cost_price); f('.f-sell').value = show(l.sell_price);
@@ -150,6 +157,35 @@ $manage = user_can('billing.manage');
             f('.f-sell').addEventListener('input', () => { row.dataset.manualSell = '1'; });
         }
         if (l.meta) f('.f-meta').textContent = l.meta;
+        if (l.type === 'material') {
+            // Plaatsing per stuk (bv. 5 access points: Kantine, Kantoor, …)
+            f('.f-place').classList.remove('d-none');
+            const list = f('.f-place-list');
+            const render = vals => {
+                const cur = vals ?? [...list.querySelectorAll('input')].map(x => x.value);
+                const cnt = Math.max(0, Math.min(50, Math.round(num(f('.f-qty').value) ?? 0)));
+                list.innerHTML = '';
+                for (let k = 0; k < cnt; k++) {
+                    const inp = document.createElement('input');
+                    inp.className = 'form-control form-control-sm'; inp.name = name('placements') + '[]';
+                    inp.setAttribute('list', 'placesList'); inp.placeholder = (k + 1) + 'e stuk'; inp.value = cur[k] || '';
+                    if (!editable) inp.disabled = true;
+                    list.appendChild(inp);
+                }
+                summary();
+            };
+            const summary = () => {
+                const v = [...list.querySelectorAll('input')].map(x => x.value.trim()), filled = v.filter(Boolean);
+                f('.f-place-sum').textContent = filled.length ? '· ' + (filled.length > 3 ? filled.slice(0, 3).join(', ') + ' +' + (filled.length - 3) : filled.join(', ')) + (filled.length < v.length ? ' (' + filled.length + '/' + v.length + ')' : '') : '';
+            };
+            list.addEventListener('input', summary);
+            f('.f-qty').addEventListener('input', () => render());
+            f('.f-place-btn').addEventListener('click', () => {
+                list.classList.toggle('d-none');
+                if (!list.classList.contains('d-none')) { const first = [...list.querySelectorAll('input')].find(x => !x.value) || list.querySelector('input'); first && first.focus(); }
+            });
+            render(l.placements || []);
+        }
         if (!editable) row.querySelectorAll('input, button').forEach(e => e.disabled = true);
         body.appendChild(row);
         grow(f('.f-desc'));
@@ -249,6 +285,7 @@ $manage = user_can('billing.manage');
 
     <?php foreach ($lines as $l) : ?>
     addLine(<?= json_encode([
+        'id' => (int) $l['id'], 'placements' => Quotes::placements($l),
         'type' => $l['type'], 'product_id' => $l['product_id'], 'description' => $l['description'],
         'quantity' => (float) $l['quantity'], 'cost_price' => $l['cost_price'] === null ? null : (float) $l['cost_price'], 'sell_price' => (float) $l['sell_price'],
     ]) ?>);

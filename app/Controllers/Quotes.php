@@ -112,6 +112,7 @@ class Quotes extends BaseController
             'quote'     => $quote,
             'customer'  => model(CustomerModel::class)->find($quote['customer_id']),
             'lines'     => $lines,
+            'sites'     => model(SiteModel::class)->where('customer_id', $quote['customer_id'])->orderBy('name')->findAll(),
             'totals'    => self::totals($lines),
             'rate'      => self::hourlyRate(),
             'markup'    => (float) (model(SupplierModel::class)->where('code', null)->first()['default_markup'] ?? 1.2),
@@ -132,15 +133,18 @@ class Quotes extends BaseController
                 continue;
             }
             $type = in_array($l['type'] ?? '', ['material', 'labor', 'text'], true) ? $l['type'] : 'material';
+            $qty  = $type === 'text' ? 1 : ($num($l['quantity'] ?? 1) ?? 1);
             $line = [
+                'id'          => ! empty($l['id']) ? (int) $l['id'] : null,
                 'quote_id'    => $quote['id'],
                 'product_id'  => ! empty($l['product_id']) ? (int) $l['product_id'] : null,
                 'type'        => $type,
                 'description' => $desc,
-                'quantity'    => $type === 'text' ? 1 : ($num($l['quantity'] ?? 1) ?? 1),
+                'quantity'    => $qty,
                 'cost_price'  => $type === 'text' ? null : $num($l['cost_price'] ?? ''),
                 'sell_price'  => $type === 'text' ? 0 : ($num($l['sell_price'] ?? '') ?? 0),
                 'sort'        => count($lines),
+                'placements'  => $type === 'material' ? self::cleanPlacements($l['placements'] ?? null, $qty) : null,
             ];
             $lines[] = $line;
             if ($type === 'material' && $line['product_id'] === null && ! empty($l['save'])) {
@@ -154,9 +158,24 @@ class Quotes extends BaseController
             'title' => trim((string) ($post['title'] ?? $quote['title'])) ?: $quote['title'],
             'notes' => trim((string) ($post['notes'] ?? '')) ?: null,
         ]);
-        model(QuoteLineModel::class)->where('quote_id', $quote['id'])->delete();
+        // Bestaande regels bijwerken (id blijft gelijk, zodat de koppeling met aangemaakte apparaten blijft),
+        // nieuwe toevoegen en weggehaalde regels verwijderen.
+        $existing = array_map('intval', array_column(model(QuoteLineModel::class)->select('id')->where('quote_id', $quote['id'])->findAll(), 'id'));
+        $keep     = [];
         foreach ($lines as $line) {
-            model(QuoteLineModel::class)->insert($line);
+            $id = $line['id'];
+            unset($line['id']);
+            if ($id !== null && in_array($id, $existing, true) && ! in_array($id, $keep, true)) {
+                model(QuoteLineModel::class)->update($id, $line);
+                $keep[] = $id;
+            } else {
+                model(QuoteLineModel::class)->insert($line);
+            }
+        }
+        $gone = array_values(array_diff($existing, $keep));
+        if ($gone !== []) {
+            model(DeviceModel::class)->whereIn('quote_line_id', $gone)->set('quote_line_id', null)->update();
+            model(QuoteLineModel::class)->whereIn('id', $gone)->delete();
         }
 
         // Losse producten bewaren in de catalogus (leverancier "Overig")
@@ -210,7 +229,7 @@ class Quotes extends BaseController
         $tax     = Moneybird::defaultTaxRateId();
         $details = array_map(static fn ($l) => $l['type'] === 'text'
             ? ['description' => $l['description'], 'text' => true]
-            : ['description' => $l['description'], 'price' => $l['sell_price'], 'amount' => $l['quantity'], 'tax_rate_id' => $tax], $lines);
+            : ['description' => self::describeWithPlacements($l), 'price' => $l['sell_price'], 'amount' => $l['quantity'], 'tax_rate_id' => $tax], $lines);
 
         $mb = new Moneybird();
 
@@ -356,17 +375,33 @@ class Quotes extends BaseController
             }
             $mdl ??= $l['sku'] ?: mb_substr(trim(preg_split('/\R/', $l['description'])[0]), 0, 100);
 
-            $num  = $this->highestNumber((int) $quote['customer_id'], $label);
+            $num   = $this->highestNumber((int) $quote['customer_id'], $label);
+            $places = self::placements($l);
+            $siteByName = [];
+            foreach ($sites as $st) {
+                $siteByName[mb_strtolower(trim($st['name']))] = (int) $st['id'];
+            }
             $ip   = trim((string) ($p['ip'] ?? ''));
             $room = trim((string) ($p['room'] ?? '')) ?: null;
             for ($i = 0; $i < $n; $i++) {
                 $num++;
+                // Plaatsing uit de offerte: naam van een locatie van de klant -> die locatie, anders de ruimte
+                $place    = $places[$l['created'] + $i] ?? '';
+                $unitSite = $siteId;
+                $unitRoom = $room;
+                if ($place !== '') {
+                    if (isset($siteByName[mb_strtolower($place)])) {
+                        $unitSite = $siteByName[mb_strtolower($place)];
+                    } else {
+                        $unitRoom = $place;
+                    }
+                }
                 $model->insert([
                     'customer_id'   => $quote['customer_id'],
-                    'site_id'       => $siteId,
+                    'site_id'       => $unitSite,
                     'type'          => $type,
                     'name'          => ($n === 1 && $num === 1) ? $label : $label . ' ' . $num,
-                    'room'          => $room ? mb_substr($room, 0, 100) : null,
+                    'room'          => $unitRoom ? mb_substr($unitRoom, 0, 100) : null,
                     'brand'         => $l['brand'] ?: $defBrand,
                     'model'         => mb_substr((string) $mdl, 0, 100),
                     'ip'            => ($kind === 'net' && $ip !== '') ? mb_substr($ip, 0, 100) : null,
@@ -450,6 +485,49 @@ class Quotes extends BaseController
         }
 
         return $this->back($n . ' regel(s) bijgewerkt naar de actuele prijzen.', 'message', site_url('offertes/' . $id));
+    }
+
+    /** Plaatsingen opschonen: één tekst per stuk, max. aantal stuks; null als alles leeg is */
+    private static function cleanPlacements($raw, float $qty): ?string
+    {
+        if (! is_array($raw)) {
+            return null;
+        }
+        $n   = min(200, max(0, (int) round($qty)));
+        $out = array_map(static fn ($v) => mb_substr(trim((string) $v), 0, 100), array_slice(array_values($raw), 0, $n));
+        while ($out !== [] && end($out) === '') {
+            array_pop($out);
+        }
+
+        return array_filter($out, static fn ($v) => $v !== '') === [] ? null : json_encode($out, JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @return list<string> */
+    public static function placements(array $line): array
+    {
+        $p = json_decode((string) ($line['placements'] ?? ''), true);
+
+        return is_array($p) ? array_map('strval', $p) : [];
+    }
+
+    /** Omschrijving voor Moneybird, met "Plaatsing: Kantine, Kantoor (2×)" eronder */
+    private static function describeWithPlacements(array $line): string
+    {
+        $counts = [];
+        foreach (self::placements($line) as $p) {
+            if ($p !== '') {
+                $counts[$p] = ($counts[$p] ?? 0) + 1;
+            }
+        }
+        if ($counts === []) {
+            return $line['description'];
+        }
+        $parts = [];
+        foreach ($counts as $p => $c) {
+            $parts[] = $c > 1 ? $p . ' (' . $c . '×)' : $p;
+        }
+
+        return $line['description'] . "\nPlaatsing: " . implode(', ', $parts);
     }
 
     /** Eén offerte verwijderen (vanuit de offerte zelf) */

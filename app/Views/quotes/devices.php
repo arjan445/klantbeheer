@@ -42,6 +42,9 @@ $kinds  = array_map(static fn ($t) => $t[2], device_types());
                 <span class="d-block small text-muted">
                     <?= aantal($l['quantity']) ?>× in offerte<?= $l['sku'] ? ' · ' . esc($l['sku']) : '' ?>
                     <?php if ($l['created'] > 0) : ?> · <span class="text-success"><i class="bi bi-check-circle"></i> <?= $l['created'] ?> al aangemaakt</span><?php endif ?>
+                    <?php $pl = array_slice(\App\Controllers\Quotes::placements($l), $l['created']); if (array_filter($pl) !== []) : ?>
+                        <span class="d-block"><i class="bi bi-geo-alt"></i> <?= esc(implode(', ', array_map(static fn ($v) => $v === '' ? '—' : $v, $pl))) ?></span>
+                    <?php endif ?>
                     <?php if ($l['guess'] === null) : ?> · <span class="text-warning-emphasis">geen apparaat herkend</span><?php endif ?>
                 </span>
             </span>
@@ -62,7 +65,7 @@ $kinds  = array_map(static fn ($t) => $t[2], device_types());
                 <input type="number" min="0" max="200" inputmode="numeric" name="<?= $k ?>[n]" class="form-control qd-n" value="<?= $done ? 0 : $l['todo'] ?>"></div>
             </div>
             <div class="col-8 col-md-3">
-                <input name="<?= $k ?>[room]" class="form-control form-control-sm" placeholder="Ruimte (optioneel)" list="rooms">
+                <input name="<?= $k ?>[room]" class="form-control form-control-sm" placeholder="<?= array_filter(\App\Controllers\Quotes::placements($l)) ? 'Ruimte voor stuks zonder plaatsing' : 'Ruimte (optioneel)' ?>" list="rooms">
             </div>
             <div class="col-12 col-md-3 qd-ip">
                 <input name="<?= $k ?>[ip]" class="form-control form-control-sm" inputmode="decimal" placeholder="Start-IP, bv. 192.168.1.64 (telt op)">

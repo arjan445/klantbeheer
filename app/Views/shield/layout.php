@@ -7,7 +7,7 @@
     <title><?= $this->renderSection('title') ?> · Klantbeheer</title>
     <link href="<?= base_url('assets/bootstrap/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="<?= base_url('assets/bootstrap-icons/bootstrap-icons.min.css') ?>" rel="stylesheet">
-    <link href="<?= base_url('scripts/style.css?ver=5') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=6') ?>" rel="stylesheet">
     <?= $this->renderSection('pageStyles') ?>
 </head>
 <body>
