@@ -5,6 +5,9 @@
     <title><?= esc($title ?: 'Klantbeheer') ?> · Klantbeheer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="<?= base_url('favicon.ico') ?>" sizes="any">
+    <link rel="icon" type="image/png" href="<?= base_url('favicon.png') ?>">
+    <link rel="apple-touch-icon" href="<?= base_url('img/apple-touch-icon.png') ?>">
     <link href="<?= base_url('assets/bootstrap/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="<?= base_url('assets/bootstrap-icons/bootstrap-icons.min.css') ?>" rel="stylesheet">
     <link href="<?= base_url('assets/datatables/dataTables.bootstrap5.min.css') ?>" rel="stylesheet">
@@ -12,7 +15,7 @@
     <script src="<?= base_url('assets/bootstrap/bootstrap.bundle.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.bootstrap5.min.js') ?>"></script>
-    <link href="<?= base_url('scripts/style.css?ver=6') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=7') ?>" rel="stylesheet">
     <meta name="csrf-name" content="<?= csrf_token() ?>">
     <meta name="csrf-hash" content="<?= csrf_hash() ?>">
 </head>
@@ -35,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
     <div class="container-fluid">
-        <a class="navbar-brand fw-semibold" href="<?= site_url('/') ?>"><i class="bi bi-buildings"></i> Klantbeheer</a>
+        <a class="navbar-brand d-flex align-items-center gap-2" href="<?= site_url('/') ?>"><img src="<?= base_url('img/logo-wit.png') ?>" alt="bongersonline" class="kb-logo"><span class="kb-app d-none d-xl-inline">Klantbeheer</span></a>
         <button type="button" id="km-toggle" class="btn btn-sm km-btn ms-auto ms-lg-2 me-2 me-lg-0 order-lg-last<?= klantmodus() ? ' active' : '' ?>"
                 title="Klantmodus: inkoopprijzen en marges verbergen" aria-pressed="<?= klantmodus() ? 'true' : 'false' ?>">
             <i class="bi <?= klantmodus() ? 'bi-eye-slash' : 'bi-eye' ?>"></i><span class="km-label"> Klantmodus</span>

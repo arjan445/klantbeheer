@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-center py-5">
     <div class="card col-12 col-md-5 col-lg-4">
         <div class="card-body p-4">
-            <h4 class="mb-4 text-center" style="color: var(--kb-blue)"><i class="bi bi-buildings"></i> Klantbeheer</h4>
+            <div class="text-center mb-4"><img src="<?= base_url('img/logo.png') ?>" alt="bongersonline" style="max-width: 260px; width: 80%; height: auto"><div class="text-muted small mt-2">Klantbeheer</div></div>
 
             <?php if (session('error') !== null) : ?>
                 <div class="alert alert-danger"><?= esc(session('error')) ?></div>

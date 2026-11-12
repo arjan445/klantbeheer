@@ -101,3 +101,8 @@ body.klantmodus .ql-head, body.klantmodus .ql { grid-template-columns: 24px 1fr 
 /* Plaatsing per stuk in offerteregels */
 .place-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .3rem; }
 @media (max-width: 767.98px) { .place-grid { grid-template-columns: 1fr 1fr; } .place-grid input { font-size: 16px; } }
+
+/* Logo in de bovenbalk */
+.kb-logo { height: 38px; width: auto; display: block; }
+.kb-app { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.6); border-left: 1px solid rgba(255,255,255,.3); padding-left: .5rem; }
+@media (max-width: 767.98px) { .kb-logo { height: 34px; } }
