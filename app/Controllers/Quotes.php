@@ -106,7 +106,11 @@ class Quotes extends BaseController
             return $this->save($quote);
         }
 
-        $lines = model(QuoteLineModel::class)->where('quote_id', $id)->orderBy('sort')->orderBy('id')->findAll();
+        $lines = model(QuoteLineModel::class)
+            ->select('quote_lines.*, products.sku AS p_sku, products.supplier_sku AS p_supplier_sku, products.source AS p_source, suppliers.name AS p_supplier, suppliers.product_url AS p_url')
+            ->join('products', 'products.id = quote_lines.product_id', 'left')
+            ->join('suppliers', 'suppliers.id = products.supplier_id', 'left')
+            ->where('quote_id', $id)->orderBy('sort')->orderBy('quote_lines.id')->findAll();
 
         return $this->page('quotes/edit', [
             'quote'     => $quote,

@@ -57,7 +57,7 @@
         <?php $pr = Catalog::price($p); ?>
         <tr class="<?= $p['active'] ? '' : 'text-muted' ?>">
             <td><?= esc($p['name']) ?>
-                <div class="small text-muted mono"><?= esc($p['sku'] ?: '') ?><?= $p['sku'] && $p['supplier_sku'] ? ' · ' : '' ?><?= esc($p['source'] === 'manual' ? '' : '#' . $p['supplier_sku']) ?><?= $p['info'] ? ' · <span class="text-warning">' . esc($p['info']) . '</span>' : '' ?></div></td>
+                <div class="small text-muted mono"><?= esc($p['sku'] ?: '') ?><?= $p['sku'] && $p['supplier_sku'] ? ' · ' : '' ?><?= esc($p['source'] === 'manual' ? '' : '#' . $p['supplier_sku']) ?><?php if ($p['source'] !== 'manual' && ($u = supplier_url($p['product_url'] ?? null, $p['supplier_sku']))) : ?> <a href="<?= esc($u, 'attr') ?>" target="_blank" rel="noopener" class="km-hide text-decoration-none" title="Bekijk bij <?= esc($p['supplier_name'], 'attr') ?>"><i class="bi bi-box-arrow-up-right"></i></a><?php endif ?><?= $p['info'] ? ' · <span class="text-warning">' . esc($p['info']) . '</span>' : '' ?></div></td>
             <td class="small km-hide"><?= esc($p['supplier_name']) ?></td>
             <td class="small km-hide"><?= esc($p['group_name']) ?></td>
             <td class="text-end small"><?= $p['list_price'] !== null ? euro($p['list_price']) : '' ?></td>

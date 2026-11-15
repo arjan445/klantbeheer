@@ -191,3 +191,17 @@ if (! function_exists('interval_label')) {
         };
     }
 }
+
+if (! function_exists('supplier_url')) {
+    /** Link naar het product bij de leverancier ({sku} in het sjabloon wordt het artikelnummer) */
+    function supplier_url(?string $template, ?string $sku): ?string
+    {
+        $template = trim((string) $template);
+        $sku      = trim((string) $sku);
+        if ($template === '' || $sku === '' || ! preg_match('#^https?://#i', $template)) {
+            return null;
+        }
+
+        return str_contains($template, '{sku}') ? str_replace('{sku}', rawurlencode($sku), $template) : rtrim($template, '/') . '/' . rawurlencode($sku);
+    }
+}

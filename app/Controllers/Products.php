@@ -40,7 +40,7 @@ class Products extends BaseController
     /** Zoeken op meerdere woorden in naam, artikelnr, typenummer, merk en groep */
     private function search(string $q, int $supplier = 0, bool $inactive = false): ProductModel
     {
-        $model = model(ProductModel::class)->select('products.*, suppliers.name AS supplier_name')
+        $model = model(ProductModel::class)->select('products.*, suppliers.name AS supplier_name, suppliers.product_url')
             ->join('suppliers', 'suppliers.id = products.supplier_id');
         if (! $inactive) {
             $model->where('products.active', 1);
@@ -77,6 +77,7 @@ class Products extends BaseController
                 'cost'     => $price['cost'],
                 'sell'     => $price['sell'],
                 'info'     => $p['info'],
+                'url'      => $p['source'] === 'manual' ? null : supplier_url($p['product_url'], $p['supplier_sku']),
                 'advice'   => $p['source'] === 'wimood' && $p['list_price'] !== null ? (float) $p['list_price'] : null,
             ];
         }
@@ -148,6 +149,7 @@ class Products extends BaseController
             foreach ((array) $this->request->getPost('supplier') as $id => $s) {
                 model(SupplierModel::class)->update((int) $id, [
                     'default_discount' => $num($s['discount'] ?? 0) ?? 0,
+                    'product_url'      => (($u = trim((string) ($s['url'] ?? ''))) !== '' && preg_match('#^https?://#i', $u)) ? mb_substr($u, 0, 255) : null,
                     'default_markup'   => $num($s['markup'] ?? 1.2) ?: 1.2,
                 ]);
             }

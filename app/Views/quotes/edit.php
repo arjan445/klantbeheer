@@ -157,6 +157,18 @@ $manage = user_can('billing.manage');
             f('.f-sell').addEventListener('input', () => { row.dataset.manualSell = '1'; });
         }
         if (l.meta) f('.f-meta').textContent = l.meta;
+        if (l.supplier || l.url) {
+            // Leverancier + link naar de productpagina (verborgen in klantmodus)
+            const s = document.createElement('span'); s.className = 'km-hide';
+            s.textContent = (l.meta ? ' · ' : '') + (l.supplier || '');
+            if (l.url) {
+                const a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
+                a.className = 'ms-1 text-decoration-none'; a.title = 'Bekijk bij ' + (l.supplier || 'leverancier');
+                a.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> bekijk';
+                s.appendChild(a);
+            }
+            f('.f-meta').appendChild(s);
+        }
         if (l.type === 'material') {
             // Plaatsing per stuk (bv. 5 access points: Kantine, Kantoor, …)
             f('.f-place').classList.remove('d-none');
@@ -254,7 +266,7 @@ $manage = user_can('billing.manage');
     }
     const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function pick(p) {
-        addLine({ type: 'material', product_id: p.id, description: p.name, quantity: 1, cost_price: p.cost, sell_price: p.sell, meta: [p.sku, p.supplier].filter(Boolean).join(' · ') });
+        addLine({ type: 'material', product_id: p.id, description: p.name, quantity: 1, cost_price: p.cost, sell_price: p.sell, meta: p.sku || '', supplier: p.supplier, url: p.url });
         search.value = ''; items = []; results.innerHTML = ''; search.focus();
     }
     if (search) {
@@ -286,6 +298,9 @@ $manage = user_can('billing.manage');
     <?php foreach ($lines as $l) : ?>
     addLine(<?= json_encode([
         'id' => (int) $l['id'], 'placements' => Quotes::placements($l),
+        'meta' => $l['product_id'] ? (string) ($l['p_sku'] ?: ($l['p_source'] === 'manual' ? '' : '#' . $l['p_supplier_sku'])) : null,
+        'supplier' => $l['product_id'] && $l['p_source'] !== 'manual' ? $l['p_supplier'] : null,
+        'url' => $l['product_id'] && $l['p_source'] !== 'manual' ? supplier_url($l['p_url'], $l['p_supplier_sku']) : null,
         'type' => $l['type'], 'product_id' => $l['product_id'], 'description' => $l['description'],
         'quantity' => (float) $l['quantity'], 'cost_price' => $l['cost_price'] === null ? null : (float) $l['cost_price'], 'sell_price' => (float) $l['sell_price'],
     ]) ?>);

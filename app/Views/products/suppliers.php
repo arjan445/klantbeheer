@@ -6,11 +6,13 @@
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><?= esc($s['name']) ?></span>
-        <div class="d-flex gap-2 align-items-center">
+        <div class="d-flex gap-2 align-items-center flex-wrap">
             <?php if ($s['code'] !== 'wimood') : ?>
             <label class="small fw-normal">Korting op bruto</label>
             <div class="input-group input-group-sm" style="width: 110px"><input name="supplier[<?= $s['id'] ?>][discount]" class="form-control" value="<?= esc(aantal($s['default_discount'])) ?>"><span class="input-group-text">%</span></div>
             <?php endif ?>
+            <label class="small fw-normal ms-2">Productlink</label>
+            <input name="supplier[<?= $s['id'] ?>][url]" class="form-control form-control-sm" style="width: 300px" value="<?= esc($s['product_url'] ?? '', 'attr') ?>" placeholder="https://…/products/{sku}" title="{sku} wordt vervangen door het artikelnummer">
             <label class="small fw-normal ms-2">Opslag</label>
             <div class="input-group input-group-sm" style="width: 110px"><span class="input-group-text">×</span><input name="supplier[<?= $s['id'] ?>][markup]" class="form-control" value="<?= esc(rtrim(rtrim(number_format((float) $s['default_markup'], 3, ',', ''), '0'), ',')) ?>"></div>
         </div>
