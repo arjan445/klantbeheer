@@ -4,7 +4,10 @@
         <a href="<?= site_url('klanten') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Klanten</a>
         <h3 class="mb-0"><?= esc($c['name']) ?> <?= $c['active'] ? '' : '<span class="badge text-bg-secondary fs-6 align-middle">inactief</span>' ?><?= ! empty($c['internal']) ? ' <span class="badge text-bg-info fs-6 align-middle">eigen gebruik</span>' : '' ?></h3>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <?php if (user_can('hours.manage')) : ?>
+            <a href="<?= site_url('uren/nieuw?klant=' . $c['id']) ?>" class="btn btn-outline-secondary"><i class="bi bi-clock"></i> Uren</a>
+        <?php endif ?>
         <?php if (user_can('billing.manage') && empty($c['internal'])) : ?>
             <a href="<?= site_url('offertes/nieuw?klant=' . $c['id']) ?>" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-text"></i> Offerte</a>
         <?php endif ?>
@@ -131,3 +134,24 @@
 <?php endif ?>
 
 </div></div>
+
+<?php if (isset($hours)) : ?>
+<div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock"></i> Uren</span>
+        <a href="<?= site_url('uren/nieuw?klant=' . $c['id']) ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Uren boeken</a>
+    </div>
+    <?php if ($hours === []) : ?>
+        <div class="card-body text-muted small">Nog geen uren geboekt.</div>
+    <?php else : ?>
+    <ul class="list-group list-group-flush">
+        <?php foreach ($hours as $h) : ?>
+        <li class="list-group-item"><a href="<?= site_url('uren/' . $h['id']) ?>" class="d-flex justify-content-between gap-2 text-reset text-decoration-none">
+            <span><span class="text-muted"><?= date('d-m-Y', strtotime($h['date'])) ?></span> · <?= esc($h['description']) ?><?= $h['site_name'] ? ' <span class="text-muted">· ' . esc($h['site_name']) . '</span>' : '' ?></span>
+            <span class="fw-semibold text-nowrap"><?= \App\Controllers\Hours::hm(\App\Models\TimeEntryModel::minutes($h)) ?></span>
+        </a></li>
+        <?php endforeach ?>
+    </ul>
+    <?php endif ?>
+</div>
+<?php endif ?>

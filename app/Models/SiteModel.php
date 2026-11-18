@@ -10,6 +10,6 @@ class SiteModel extends Model
     protected $returnType    = 'array';
     protected $useTimestamps = true;
     protected $updatedField  = 'updated_at';
-    protected $allowedFields = ['customer_id', 'name', 'address', 'zipcode', 'city', 'notes'];
+    protected $allowedFields = ['customer_id', 'name', 'address', 'zipcode', 'city', 'notes', 'lat', 'lng', 'geo_query'];
 
 }

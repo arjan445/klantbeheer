@@ -190,6 +190,101 @@ class Moneybird
         return true;
     }
 
+    // ---------------------------------------------------------------- Uren & memoriaal
+
+    /** @return list<array{id:string,name:string}> */
+    public function users(): array
+    {
+        return array_map(static fn ($u) => ['id' => (string) $u['id'], 'name' => (string) ($u['name'] ?? $u['email'] ?? $u['id'])], $this->request('GET', 'users'));
+    }
+
+    /** @return list<array> grootboekrekeningen */
+    public function ledgerAccounts(): array
+    {
+        $list = $this->request('GET', 'ledger_accounts');
+        usort($list, static fn ($a, $b) => strcmp((string) ($a['account_id'] ?? $a['name']), (string) ($b['account_id'] ?? $b['name'])));
+
+        return $list;
+    }
+
+    /** Uren aanmaken of bijwerken; geeft het Moneybird-id terug */
+    public function saveTimeEntry(?string $id, array $entry): string
+    {
+        if ($id) {
+            try {
+                return (string) $this->request('PATCH', 'time_entries/' . rawurlencode($id), null, ['time_entry' => $entry])['id'];
+            } catch (RuntimeException $e) {
+                if ($e->getCode() !== 404) {
+                    throw $e;
+                }
+                // in Moneybird verwijderd: opnieuw aanmaken
+            }
+        }
+
+        return (string) $this->request('POST', 'time_entries', null, ['time_entry' => $entry])['id'];
+    }
+
+    public function deleteTimeEntry(string $id): void
+    {
+        try {
+            $this->request('DELETE', 'time_entries/' . rawurlencode($id));
+        } catch (RuntimeException $e) {
+            if ($e->getCode() !== 404) {
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * Memoriaalboeking aanmaken, of de bestaande bijwerken (oude regels weg, nieuwe erin, zelfde boeking).
+     *
+     * @param list<array{ledger_account_id:string,debit:string,credit:string,description:string}> $entries
+     */
+    public function saveJournal(?string $id, string $date, string $reference, array $entries): string
+    {
+        $doc = ['reference' => $reference, 'date' => $date];
+        if ($id) {
+            try {
+                $old = $this->request('GET', 'documents/general_journal_documents/' . rawurlencode($id));
+                $attrs = [];
+                foreach ($old['general_journal_document_entries'] ?? [] as $e) {
+                    $attrs[] = ['id' => $e['id'], '_destroy' => true];
+                }
+                $doc['general_journal_document_entries_attributes'] = array_merge($attrs, $entries);
+
+                return (string) $this->request('PATCH', 'documents/general_journal_documents/' . rawurlencode($id), null, ['general_journal_document' => $doc])['id'];
+            } catch (RuntimeException $e) {
+                if ($e->getCode() !== 404) {
+                    throw $e;
+                }
+            }
+        }
+        $doc['general_journal_document_entries_attributes'] = $entries;
+
+        return (string) $this->request('POST', 'documents/general_journal_documents', null, ['general_journal_document' => $doc])['id'];
+    }
+
+    public function deleteJournal(string $id): void
+    {
+        try {
+            $this->request('DELETE', 'documents/general_journal_documents/' . rawurlencode($id));
+        } catch (RuntimeException $e) {
+            if ($e->getCode() !== 404) {
+                throw $e;
+            }
+        }
+    }
+
+    public function journalUrl(string $id): string
+    {
+        return 'https://moneybird.com/' . $this->administrationId . '/documents/' . rawurlencode($id);
+    }
+
+    public function timeEntryUrl(): string
+    {
+        return 'https://moneybird.com/' . $this->administrationId . '/time_entries';
+    }
+
     private function request(string $method, string $path, ?array $query = null, ?array $body = null): array
     {
         if (! $this->configured()) {

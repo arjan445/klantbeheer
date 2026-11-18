@@ -40,11 +40,12 @@ class AuthGroups extends ShieldAuthGroups
         'vault.manage'     => 'Apparaten en wachtwoorden toevoegen/wijzigen',
         'users.manage'     => 'Gebruikers beheren',
         'settings.manage'  => 'Instellingen (Moneybird) en het kluislogboek',
+        'hours.manage'     => 'Uren en kilometers registreren',
     ];
 
     public array $matrix = [
-        'admin'         => ['customers.*', 'billing.*', 'vault.*', 'users.*', 'settings.*'],
-        'administratie' => ['customers.view', 'customers.manage', 'billing.view', 'billing.manage'],
+        'admin'         => ['customers.*', 'billing.*', 'vault.*', 'users.*', 'settings.*', 'hours.*'],
+        'administratie' => ['customers.view', 'customers.manage', 'billing.view', 'billing.manage', 'hours.manage'],
         'monteur'       => ['customers.view', 'vault.view', 'vault.manage'],
     ];
 }

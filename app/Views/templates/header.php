@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <?php endif ?>
                 <?php if (user_can('billing.view')) : ?>
                 <li class="nav-item"><a class="nav-link <?= url_is('offertes*') || url_is('producten*') ? 'active' : '' ?>" href="<?= site_url('offertes') ?>">Offertes</a></li>
+                <?php if (user_can('hours.manage')) : ?><li class="nav-item"><a class="nav-link <?= url_is('uren*') ? 'active' : '' ?>" href="<?= site_url('uren') ?>">Uren</a></li><?php endif ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle <?= url_is('abonnementen*') || url_is('domeinen*') || url_is('dsd*') || url_is('facturatie*') || url_is('diensten*') || url_is('kostprijzen*') ? 'active' : '' ?>" href="#" data-bs-toggle="dropdown">Abonnementen</a>
                     <ul class="dropdown-menu">
@@ -78,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <?php endif ?>
                         <?php if (user_can('settings.manage')) : ?>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/moneybird') ?>">Moneybird</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('beheer/uren') ?>">Uren &amp; kilometers</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/kluislog') ?>">Kluislogboek</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/diagnose') ?>">Diagnose</a></li>
                         <?php endif ?>

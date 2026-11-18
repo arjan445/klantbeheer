@@ -63,6 +63,14 @@ class Customers extends BaseController
                 ->orderBy('site_id')->orderBy('type')->orderBy('name')->findAll();
         }
 
+        if (user_can('hours.manage')) {
+            $data['hours'] = model(\App\Models\TimeEntryModel::class)
+                ->select('time_entries.*, sites.name AS site_name')
+                ->join('sites', 'sites.id = time_entries.site_id', 'left')
+                ->where('time_entries.customer_id', $id)
+                ->orderBy('date', 'DESC')->orderBy('start_time', 'DESC')->findAll(10);
+        }
+
         return $this->page('customers/show', $data, $customer['name']);
     }
 

@@ -6,6 +6,7 @@ use App\Controllers\CostPools;
 use App\Controllers\Customers;
 use App\Controllers\Dashboard;
 use App\Controllers\Devices;
+use App\Controllers\Hours;
 use App\Controllers\Domains;
 use App\Controllers\Products;
 use App\Controllers\Quotes;
@@ -131,7 +132,20 @@ $routes->group('apparaten', ['filter' => 'can:vault.view'], static function ($ro
 });
 
 // Beheer
+// Uren & kilometers
+$routes->group('uren', ['filter' => 'can:hours.manage'], static function ($routes) {
+    $routes->get('/', [Hours::class, 'index']);
+    $routes->match(['GET', 'POST'], 'nieuw', [Hours::class, 'create']);
+    $routes->match(['GET', 'POST'], '(:num)', [Hours::class, 'edit/$1']);
+    $routes->post('(:num)/verwijderen', [Hours::class, 'delete/$1']);
+    $routes->post('(:num)/moneybird', [Hours::class, 'resync/$1']);
+    $routes->post('dag/(:segment)/km', [Hours::class, 'dayKm/$1']);
+    $routes->post('dag/(:segment)/boeken', [Hours::class, 'dayBook/$1']);
+    $routes->post('maand/boeken', [Hours::class, 'monthBook']);
+});
+
 $routes->group('beheer', static function ($routes) {
+    $routes->match(['GET', 'POST'], 'uren', [Hours::class, 'settings'], ['filter' => 'can:settings.manage']);
     $routes->get('gebruikers', [Users::class, 'index'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'gebruikers/nieuw', [Users::class, 'create'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'gebruikers/(:num)', [Users::class, 'edit/$1'], ['filter' => 'can:users.manage']);
