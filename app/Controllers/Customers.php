@@ -63,6 +63,8 @@ class Customers extends BaseController
                 ->orderBy('site_id')->orderBy('type')->orderBy('name')->findAll();
         }
 
+        $data['todos'] = model(\App\Models\TodoModel::class)->open((int) $id);
+
         if (user_can('hours.manage')) {
             $data['hours'] = model(\App\Models\TimeEntryModel::class)
                 ->select('time_entries.*, sites.name AS site_name')

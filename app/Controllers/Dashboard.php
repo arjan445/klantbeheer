@@ -12,6 +12,9 @@ class Dashboard extends BaseController
     public function index()
     {
         $data = [
+            'todos'     => model(\App\Models\TodoModel::class)->open(null, 12),
+            'todoCount' => model(\App\Models\TodoModel::class)->where('done', 0)->countAllResults(),
+            'todoCustomers' => \App\Controllers\Todos::customerOptions(),
             'customers' => model(CustomerModel::class)->where('active', 1)->countAllResults(),
             'devices'   => user_can('vault.view') ? model(DeviceModel::class)->countAllResults() : null,
         ];

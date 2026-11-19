@@ -155,3 +155,12 @@
     <?php endif ?>
 </div>
 <?php endif ?>
+
+<div class="card mt-3">
+    <div class="card-header"><i class="bi bi-check2-square"></i> Taken</div>
+    <div class="card-body">
+        <?= view('todos/_quickadd', ['customerId' => $c['id']]) ?>
+        <div class="todo-hide-done mt-2"><?= view('todos/_list', ['todos' => $todos, 'showCustomer' => false, 'empty' => 'Geen open taken voor deze klant.']) ?></div>
+    </div>
+</div>
+<?= view('todos/_script') ?>

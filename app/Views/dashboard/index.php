@@ -1,4 +1,16 @@
-<h3 class="mb-4">Dashboard</h3>
+<h3 class="mb-3">Dashboard</h3>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-check2-square"></i> Taken <?php if ($todoCount) : ?><span class="badge text-bg-light border"><?= (int) $todoCount ?></span><?php endif ?></span>
+        <a href="<?= site_url('taken') ?>" class="small">Alle taken<?= $todoCount > count($todos) ? ' (' . (int) $todoCount . ')' : '' ?> →</a>
+    </div>
+    <div class="card-body">
+        <?= view('todos/_quickadd', ['customerId' => null, 'customers' => $todoCustomers]) ?>
+        <div class="todo-hide-done mt-2"><?= view('todos/_list', ['todos' => $todos]) ?></div>
+    </div>
+</div>
+<?= view('todos/_script') ?>
 
 <?php if (! empty($dsdUnder)) : ?>
 <div class="alert alert-danger d-flex justify-content-between align-items-center">

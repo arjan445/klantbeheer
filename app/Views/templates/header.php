@@ -15,7 +15,7 @@
     <script src="<?= base_url('assets/bootstrap/bootstrap.bundle.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.bootstrap5.min.js') ?>"></script>
-    <link href="<?= base_url('scripts/style.css?ver=7') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=8') ?>" rel="stylesheet">
     <meta name="csrf-name" content="<?= csrf_token() ?>">
     <meta name="csrf-hash" content="<?= csrf_hash() ?>">
 </head>
@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <?php endif ?>
                 <?php if (user_can('billing.view')) : ?>
                 <li class="nav-item"><a class="nav-link <?= url_is('offertes*') || url_is('producten*') ? 'active' : '' ?>" href="<?= site_url('offertes') ?>">Offertes</a></li>
+                <li class="nav-item"><a class="nav-link <?= url_is('taken*') ? 'active' : '' ?>" href="<?= site_url('taken') ?>">Taken</a></li>
                 <?php if (user_can('hours.manage')) : ?><li class="nav-item"><a class="nav-link <?= url_is('uren*') ? 'active' : '' ?>" href="<?= site_url('uren') ?>">Uren</a></li><?php endif ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle <?= url_is('abonnementen*') || url_is('domeinen*') || url_is('dsd*') || url_is('facturatie*') || url_is('diensten*') || url_is('kostprijzen*') ? 'active' : '' ?>" href="#" data-bs-toggle="dropdown">Abonnementen</a>

@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="<?= base_url('img/apple-touch-icon.png') ?>">
     <link href="<?= base_url('assets/bootstrap/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="<?= base_url('assets/bootstrap-icons/bootstrap-icons.min.css') ?>" rel="stylesheet">
-    <link href="<?= base_url('scripts/style.css?ver=7') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=8') ?>" rel="stylesheet">
     <?= $this->renderSection('pageStyles') ?>
 </head>
 <body>

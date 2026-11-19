@@ -16,6 +16,7 @@ use App\Controllers\Services;
 use App\Controllers\Settings;
 use App\Controllers\Sites;
 use App\Controllers\Subscriptions;
+use App\Controllers\Todos;
 use App\Controllers\Users;
 use CodeIgniter\Router\RouteCollection;
 
@@ -132,6 +133,17 @@ $routes->group('apparaten', ['filter' => 'can:vault.view'], static function ($ro
 });
 
 // Beheer
+// Taken (+ openbare iCal-feed met geheime sleutel)
+$routes->get('agenda/(:segment)', [Todos::class, 'ical/$1']);
+$routes->group('taken', static function ($routes) {
+    $routes->get('/', [Todos::class, 'index']);
+    $routes->post('nieuw', [Todos::class, 'create']);
+    $routes->post('agenda-link', [Todos::class, 'newToken']);
+    $routes->match(['GET', 'POST'], '(:num)', [Todos::class, 'edit/$1']);
+    $routes->post('(:num)/afvinken', [Todos::class, 'toggle/$1']);
+    $routes->post('(:num)/verwijderen', [Todos::class, 'delete/$1']);
+});
+
 // Uren & kilometers
 $routes->group('uren', ['filter' => 'can:hours.manage'], static function ($routes) {
     $routes->get('/', [Hours::class, 'index']);
