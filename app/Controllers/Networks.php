@@ -158,6 +158,14 @@ class Networks extends BaseController
                 }
                 $ns  = $nd['network_site_id'] ? model(NetworkSiteModel::class)->find($nd['network_site_id']) : null;
                 $loc = $ns && $ns['site_id'] ? model(SiteModel::class)->find($ns['site_id']) : null;
+                // Site onbekend of niet gekoppeld: zelf een klantlocatie gekozen
+                if (str_starts_with($choice, 'loc:')) {
+                    $loc = model(SiteModel::class)->find((int) substr($choice, 4));
+                    if ($loc === null) {
+                        continue;
+                    }
+                    $choice = 'new';
+                }
                 if ($choice === 'new') {
                     if ($loc === null) {
                         $errors[] = ($nd['name'] ?: $nd['mac']) . ': koppel eerst de site aan een klantlocatie';

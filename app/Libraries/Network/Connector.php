@@ -54,6 +54,9 @@ abstract class Connector
             if (is_array($data)) {
                 $msg = (string) ($data['message'] ?? $data['error'] ?? $data['detail'] ?? '');
             }
+            if ($status === 408 || $status === 504) {
+                $msg = 'de console reageerde niet op tijd';
+            }
             if ($status === 401 || $status === 403) {
                 $msg = 'sleutel ongeldig of zonder rechten' . ($msg !== '' ? ' (' . $msg . ')' : '');
             }

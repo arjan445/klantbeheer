@@ -93,7 +93,11 @@ $locSelect = static function (string $name, ?int $current, array $locations, ?in
                 <?php if ($linked) : ?>
                     <span class="small fw-normal"><i class="bi bi-link-45deg"></i> <a href="<?= site_url('klanten/' . $site['customer_id']) ?>"><?= esc($site['customer_name']) ?></a> · <?= esc($site['loc_name']) ?></span>
                 <?php else : ?>
+                    <?php if ($site && str_starts_with($site['external_id'], 'host:')) : ?>
+                        <span class="small fw-normal text-muted">Site nog niet bekend: kies per apparaat de klant, of wacht op de volgende synchronisatie</span>
+                    <?php else : ?>
                     <a href="<?= site_url('netwerk?tab=sites') ?>" class="small fw-normal text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> Site nog niet aan een klant gekoppeld</a>
+                    <?php endif ?>
                 <?php endif ?>
             </div>
             <div class="card-body">
@@ -127,6 +131,13 @@ $locSelect = static function (string $name, ?int $current, array $locations, ?in
                                     <?php endforeach ?>
                                 </optgroup>
                                 <?php endif ?>
+                            <?php endif ?>
+                            <?php if (! $linked) : ?>
+                                <?php foreach ($locations as $customer => $list) : ?>
+                                <optgroup label="Nieuw in de kluis bij <?= esc($customer, 'attr') ?>">
+                                    <?php foreach ($list as $l) : ?><option value="loc:<?= (int) $l['id'] ?>"><?= esc($customer . ' · ' . $l['name']) ?></option><?php endforeach ?>
+                                </optgroup>
+                                <?php endforeach ?>
                             <?php endif ?>
                             <option value="ignore">Negeren (niet bewaken)</option>
                         </select>
