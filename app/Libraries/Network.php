@@ -101,6 +101,23 @@ class Network
      */
     public static function sync(?string $only = null): array
     {
+        // Niet twee keer tegelijk (cron en de knop, of een trage vorige run)
+        $lock = @fopen(WRITEPATH . 'network-sync.lock', 'c');
+        if ($lock === false || ! flock($lock, LOCK_EX | LOCK_NB)) {
+            return [['platform' => 'all', 'label' => 'Netwerk', 'ok' => false, 'error' => 'Er loopt al een synchronisatie, probeer het zo nog eens.',
+                'sites' => 0, 'devices' => 0, 'online' => 0, 'offline' => 0, 'linked' => 0, 'notes' => []]];
+        }
+
+        try {
+            return self::doSync($only);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    private static function doSync(?string $only): array
+    {
         $results = [];
         foreach (self::connectors() as $c) {
             if (! $c->configured() || ($only !== null && $only !== $c->platform())) {

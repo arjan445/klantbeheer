@@ -15,8 +15,14 @@ use Throwable;
  * De Site Manager zegt per apparaat alleen bij welke console het hoort. Heeft een
  * console één site (een UCG/UDM bij de klant), dan horen alle apparaten bij die site.
  * Heeft een console meerdere sites (een gehoste controller), dan wordt per site de
- * apparatenlijst opgehaald via de Cloud Connector (Network Integration API). Lukt dat
- * niet, dan komen de apparaten onder de console zelf en koppel je ze met de hand.
+ * apparatenlijst opgehaald via de Cloud Connector: eerst de Network Integration API,
+ * anders de oudere Network API. Dat gaat via de cloud naar de console en kan traag
+ * zijn, dus:
+ *  - elke aanvraag wordt bij een timeout nog twee keer geprobeerd;
+ *  - een site die niet lukt, houdt de andere sites niet tegen;
+ *  - eenmaal bekend blijft een apparaat bij zijn site, ook als het ophalen later mislukt;
+ *  - de indeling wordt alleen opnieuw opgehaald als er onbekende apparaten zijn,
+ *    of eens per 6 uur.
  */
 class Unifi extends Connector
 {
@@ -44,9 +50,22 @@ class Unifi extends Connector
         return $this->apiKey !== '';
     }
 
-    private function get(string $path, array $query = [])
+    /** Hoe vaak de indeling per site opnieuw wordt opgehaald als alles al bekend is */
+    private const REMAP_HOURS = 6;
+
+    private function get(string $path, array $query = [], int $tries = 1, int $timeout = 30)
     {
-        return $this->getJson($this->base . $path, $query, ['X-API-Key' => $this->apiKey]);
+        for ($i = 1; ; $i++) {
+            try {
+                return $this->getJson($this->base . $path, $query, ['X-API-Key' => $this->apiKey], $timeout);
+            } catch (\RuntimeException $e) {
+                $retry = in_array($e->getCode(), [0, 28, 408, 429, 500, 502, 503, 504], true) || stripos($e->getMessage(), 'timed out') !== false;
+                if (! $retry || $i >= $tries) {
+                    throw $e;
+                }
+                usleep($i * 1_500_000);
+            }
+        }
     }
 
     /** Alle pagina's van een Site Manager-lijst */
@@ -69,6 +88,7 @@ class Unifi extends Connector
     public function fetch(): array
     {
         $notes = [];
+        $known = $this->knownSites();
 
         // Consoles: naam
         $hostNames = [];
@@ -113,10 +133,23 @@ class Unifi extends Connector
             if (count($hostSites) === 1) {
                 $fallback = $hostSites[0]['external_id'];
             } elseif (count($hostSites) > 1) {
-                try {
-                    $siteForMac = $this->macsPerSite($hostId, $hostSites);
-                } catch (Throwable $e) {
-                    $notes[] = 'Console ' . ($hostNames[$hostId] ?? $hostId) . ' heeft ' . count($hostSites) . ' sites; apparaten per site ophalen lukte niet (' . $e->getMessage() . '). Koppel ze met de hand.';
+                $siteIds = array_column($hostSites, 'external_id');
+                // Wat we al wisten (alleen sites die nog bestaan)
+                $siteForMac = array_filter($known, static fn ($sid) => in_array($sid, $siteIds, true));
+                $macs       = array_filter(array_map(static fn ($d) => self::normalizeMac($d['mac'] ?? null), $group['devices'] ?? []));
+                $unknown    = array_diff($macs, array_keys($siteForMac));
+                $lastMap    = (int) Network::setting('unifi.sitemap.' . $hostId);
+                if ($unknown !== [] || $lastMap < time() - self::REMAP_HOURS * 3600) {
+                    [$fresh, $failed] = $this->macsPerSite($hostId, $hostSites);
+                    $siteForMac       = $fresh + $siteForMac; // nieuw gaat voor oud
+                    if ($failed === []) {
+                        \App\Libraries\Setting::set('unifi.sitemap.' . $hostId, (string) time());
+                    }
+                    $still = array_diff($macs, array_keys($siteForMac));
+                    if ($failed !== [] && $still !== []) {
+                        $notes[] = 'Console ' . ($hostNames[$hostId] ?? $hostId) . ': ' . count($still) . ' apparaat/apparaten nog zonder site, want ophalen lukte niet voor '
+                            . implode(', ', $failed) . '. Wordt bij de volgende synchronisatie opnieuw geprobeerd.';
+                    }
                 }
             }
             // Pseudo-site voor de console, alleen als er apparaten zonder bekende site zijn
@@ -168,54 +201,114 @@ class Unifi extends Connector
     }
 
     /**
-     * Voor een console met meerdere sites: MAC -> site-ID (van de Site Manager),
-     * via de Network Integration API achter de Cloud Connector.
+     * Bekende indeling uit de database: MAC -> site-ID, voor apparaten die al eens
+     * aan een echte site (niet de console zelf) zijn toegewezen.
      *
-     * @param list<array> $hostSites
      * @return array<string,string>
      */
-    private function macsPerSite(string $hostId, array $hostSites): array
+    private function knownSites(): array
     {
-        $prefix = '/v1/connector/consoles/' . rawurlencode($hostId) . '/proxy/network/integration/v1';
-        $local  = $this->get($prefix . '/sites', ['limit' => 200]);
-
         $map = [];
-        foreach ($local['data'] ?? [] as $ls) {
-            // Integration-site koppelen aan Site Manager-site: interne naam ("default") of weergavenaam
-            $target = null;
-            foreach ($hostSites as $hs) {
-                if (($ls['internalReference'] ?? null) !== null && $ls['internalReference'] === $hs['description']) {
-                    $target = $hs['external_id'];
-                    break;
-                }
+        try {
+            foreach (model(\App\Models\NetworkDeviceModel::class)->select('network_devices.mac, network_sites.external_id')
+                ->join('network_sites', 'network_sites.id = network_devices.network_site_id')
+                ->where('network_devices.platform', 'unifi')->where('network_devices.mac IS NOT NULL', null, false)
+                ->notLike('network_sites.external_id', 'host:', 'after')->findAll() as $r) {
+                $map[$r['mac']] = $r['external_id'];
             }
-            if ($target === null) {
-                foreach ($hostSites as $hs) {
-                    if (mb_strtolower((string) ($ls['name'] ?? '')) === mb_strtolower($hs['name'])) {
-                        $target = $hs['external_id'];
-                        break;
-                    }
-                }
-            }
-            if ($target === null) {
-                continue;
-            }
-            for ($offset = 0, $i = 0; $i < 20; $i++) {
-                $page = $this->get($prefix . '/sites/' . rawurlencode((string) $ls['id']) . '/devices', ['offset' => $offset, 'limit' => 200]);
-                foreach ($page['data'] ?? [] as $d) {
-                    if ($mac = self::normalizeMac($d['macAddress'] ?? null)) {
-                        $map[$mac] = $target;
-                    }
-                }
-                $count  = count($page['data'] ?? []);
-                $offset += $count;
-                if ($count === 0 || $offset >= (int) ($page['totalCount'] ?? 0)) {
-                    break;
-                }
-            }
+        } catch (Throwable $e) {
+            // Geen database (bv. bij het testen van de verbinding): dan zonder
         }
 
         return $map;
+    }
+
+    /**
+     * Voor een console met meerdere sites: MAC -> site-ID (van de Site Manager), via de
+     * Cloud Connector. Per site eerst de Network Integration API, anders de oudere
+     * Network API. Een site die niet lukt, slaat hij over.
+     *
+     * @param list<array> $hostSites
+     * @return array{0: array<string,string>, 1: list<string>}  [indeling, namen van mislukte sites]
+     */
+    private function macsPerSite(string $hostId, array $hostSites): array
+    {
+        $proxy = '/v1/connector/consoles/' . rawurlencode($hostId) . '/proxy/network';
+        $map   = [];
+
+        // Integration API: lijst met sites (id + interne naam)
+        $integration = [];
+        try {
+            foreach ($this->get($proxy . '/integration/v1/sites', ['limit' => 200], 3, 40)['data'] ?? [] as $ls) {
+                $integration[] = $ls;
+            }
+        } catch (Throwable $e) {
+            log_message('info', 'UniFi ' . $hostId . ': integration-sites niet bereikbaar: ' . $e->getMessage());
+        }
+
+        $failed   = [];
+        $deadline = microtime(true) + 120; // niet eindeloos wachten: de rest de volgende keer
+        foreach ($hostSites as $hs) {
+            if (microtime(true) > $deadline) {
+                $failed[] = $hs['name'];
+                continue;
+            }
+            $macs = null;
+
+            // 1. Integration API
+            $ls = null;
+            foreach ($integration as $x) {
+                if ((($x['internalReference'] ?? null) !== null && $x['internalReference'] === $hs['description'])
+                    || mb_strtolower((string) ($x['name'] ?? '')) === mb_strtolower($hs['name'])) {
+                    $ls = $x;
+                    break;
+                }
+            }
+            if ($ls !== null) {
+                try {
+                    $macs = [];
+                    for ($offset = 0, $i = 0; $i < 20; $i++) {
+                        $page = $this->get($proxy . '/integration/v1/sites/' . rawurlencode((string) $ls['id']) . '/devices', ['offset' => $offset, 'limit' => 100], 2, 40);
+                        foreach ($page['data'] ?? [] as $d) {
+                            if ($mac = self::normalizeMac($d['macAddress'] ?? null)) {
+                                $macs[] = $mac;
+                            }
+                        }
+                        $count  = count($page['data'] ?? []);
+                        $offset += $count;
+                        if ($count === 0 || $offset >= (int) ($page['totalCount'] ?? 0)) {
+                            break;
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $macs = null;
+                }
+            }
+
+            // 2. Oudere Network API (op de interne sitenaam, bv. "default")
+            if ($macs === null && $hs['description'] && microtime(true) < $deadline) {
+                try {
+                    $macs = [];
+                    foreach ($this->get($proxy . '/api/s/' . rawurlencode($hs['description']) . '/stat/device-basic', [], 2, 40)['data'] ?? [] as $d) {
+                        if ($mac = self::normalizeMac($d['mac'] ?? null)) {
+                            $macs[] = $mac;
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $macs = null;
+                }
+            }
+
+            if ($macs === null) {
+                $failed[] = $hs['name'];
+                continue;
+            }
+            foreach ($macs as $mac) {
+                $map[$mac] = $hs['external_id'];
+            }
+        }
+
+        return [$map, $failed];
     }
 
     public static function mapStatus(?string $raw): string
