@@ -1,5 +1,14 @@
 <h3 class="mb-3">Dashboard</h3>
 
+<?php if (isset($netOffline)) : ?>
+    <?= view('network/_offline', ['offline' => $netOffline, 'status' => $netStatus, 'dashboard' => true]) ?>
+<?php elseif (user_can('settings.manage')) : ?>
+    <div class="alert alert-light border d-flex justify-content-between align-items-center gap-2 small">
+        <span><i class="bi bi-wifi"></i> Zie hier welke klantapparaten offline zijn: koppel UniFi en UISP.</span>
+        <a href="<?= site_url('beheer/netwerk') ?>" class="btn btn-sm btn-outline-primary text-nowrap">Instellen</a>
+    </div>
+<?php endif ?>
+
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-check2-square"></i> Taken <?php if ($todoCount) : ?><span class="badge text-bg-light border"><?= (int) $todoCount ?></span><?php endif ?></span>

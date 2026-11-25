@@ -412,6 +412,7 @@ class Quotes extends BaseController
                     'installed_at'  => $installed,
                     'notes'         => 'Uit offerte #' . $quote['id'],
                     'quote_line_id' => $l['id'],
+                    'sold_at'       => date('Y-m-d'),
                 ]);
                 $made++;
                 if ($ip !== '') {

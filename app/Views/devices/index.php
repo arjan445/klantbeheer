@@ -16,5 +16,5 @@
     <div class="alert alert-danger"><i class="bi bi-shield-exclamation"></i> Er is geen <code>encryption.key</code> ingesteld. Wachtwoorden kunnen niet worden opgeslagen of getoond. Draai <code>php spark key:generate</code>.</div>
 <?php endif ?>
 <div class="card"><div class="card-body">
-    <?= view('devices/_table', ['devices' => $devices, 'showCustomer' => true]) ?>
+    <?= view('devices/_table', ['devices' => $devices, 'showCustomer' => true, 'net' => $net]) ?>
 </div></div>
