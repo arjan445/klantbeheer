@@ -60,7 +60,8 @@ class Mileage
         if (self::apiKey() === '') {
             throw new RuntimeException('Geen OpenRouteService-sleutel ingesteld (Beheer → Uren & kilometers).');
         }
-        $base = rtrim((string) env('openroute.baseURL', 'https://api.openrouteservice.org'), '/');
+        // Sinds 24-11-2026 draait OpenRouteService op api.heigit.org (api.openrouteservice.org is opgeheven)
+        $base = rtrim((string) env('openroute.baseURL', 'https://api.heigit.org'), '/');
         $opts = ['headers' => ['Authorization' => self::apiKey(), 'Accept' => 'application/json'], 'http_errors' => false, 'timeout' => 20];
         if ($body !== null) {
             $opts['json'] = $body;
@@ -68,9 +69,21 @@ class Mileage
         $res  = \Config\Services::curlrequest([], null, null, false)->request($method, $base . $url, $opts);
         $data = json_decode((string) $res->getBody(), true);
         if ($res->getStatusCode() >= 400 || ! is_array($data)) {
-            $err = is_array($data) ? ($data['error']['message'] ?? $data['error'] ?? json_encode($data)) : (string) $res->getBody();
+            if (is_array($data)) {
+                $err = $data['error']['message'] ?? $data['error'] ?? $data['message'] ?? json_encode($data);
+                $err = is_string($err) ? $err : json_encode($err);
+            } else {
+                // HTML-foutpagina: alleen de titel/eerste tekst tonen, niet de hele pagina
+                $html = (string) $res->getBody();
+                $err  = preg_match('#<title>(.*?)</title>#is', $html, $m) ? trim($m[1]) : trim(preg_replace('/\s+/', ' ', strip_tags($html)));
+            }
+            $hint = match ($res->getStatusCode()) {
+                401, 403 => ' Controleer je API-sleutel bij Beheer → Uren & kilometers.',
+                429      => ' Daglimiet bereikt, probeer het later opnieuw.',
+                default  => '',
+            };
 
-            throw new RuntimeException('OpenRouteService gaf een fout (' . $res->getStatusCode() . '): ' . (is_string($err) ? $err : json_encode($err)));
+            throw new RuntimeException('OpenRouteService gaf een fout (' . $res->getStatusCode() . '): ' . mb_strimwidth($err, 0, 200, '…') . $hint);
         }
 
         return $data;
@@ -79,7 +92,7 @@ class Mileage
     /** @return array{0:float,1:float} [lng, lat] */
     public static function geocode(string $address): array
     {
-        $data = self::ors('GET', '/geocode/search?' . http_build_query(['api_key' => self::apiKey(), 'text' => $address, 'boundary.country' => 'NL,BE,DE', 'size' => 1]));
+        $data = self::ors('GET', '/pelias/v1/search?' . http_build_query(['api_key' => self::apiKey(), 'text' => $address, 'boundary.country' => 'NL,BE,DE', 'size' => 1]));
         $c    = $data['features'][0]['geometry']['coordinates'] ?? null;
         if (! is_array($c) || count($c) < 2) {
             throw new RuntimeException('Adres niet gevonden: ' . $address);
@@ -91,7 +104,7 @@ class Mileage
     /** Totale rijafstand in km langs alle punten ([lng, lat]) */
     public static function distance(array $coords): float
     {
-        $data = self::ors('POST', '/v2/directions/driving-car', ['coordinates' => $coords, 'units' => 'km']);
+        $data = self::ors('POST', '/openrouteservice/v2/directions/driving-car', ['coordinates' => $coords, 'units' => 'km']);
         $d    = $data['routes'][0]['summary']['distance'] ?? null;
         if ($d === null) {
             throw new RuntimeException('Geen route gevonden.');
