@@ -7,6 +7,7 @@
  */
 $showCustomer ??= false;
 $siteNames ??= [];
+$net ??= \App\Libraries\Network::statusMap(array_column($devices, 'id'));
 ?>
 <div class="dev-table">
 <table class="table table-sm table-hover align-middle <?= count($devices) > 15 ? 'datatable' : '' ?>">
@@ -19,7 +20,7 @@ $siteNames ??= [];
     <?php foreach ($devices as $d) : ?>
         <tr>
             <td class="text-nowrap"><?= device_type_icon($d['type']) ?> <span class="small text-muted"><?= esc(device_type_label($d['type'])) ?></span></td>
-            <td><a href="<?= site_url('apparaten/' . $d['id']) ?>" class="fw-semibold"><?= esc($d['name']) ?></a><?php if (! empty($d['room'])) : ?><div class="small text-muted"><?= esc($d['room']) ?></div><?php endif ?></td>
+            <td><?= \App\Libraries\Network::dot($net[(int) $d['id']] ?? null) ?> <a href="<?= site_url('apparaten/' . $d['id']) ?>" class="fw-semibold"><?= esc($d['name']) ?></a><?php if (! empty($d['room'])) : ?><div class="small text-muted"><?= esc($d['room']) ?></div><?php endif ?></td>
             <?php if ($showCustomer) : ?><td><a href="<?= site_url('klanten/' . $d['customer_id']) ?>"><?= esc($d['customer_name'] ?? '') ?></a></td><?php endif ?>
             <td><?= esc($d['site_name'] ?? ($siteNames[$d['site_id']] ?? '')) ?></td>
             <td class="mono small">
@@ -52,7 +53,7 @@ $siteNames ??= [];
 <?php foreach ($devices as $d) : ?>
     <div class="dev-card">
         <div class="d-flex justify-content-between align-items-start">
-            <a href="<?= site_url('apparaten/' . $d['id']) ?>" class="dev-title text-decoration-none"><?= device_type_icon($d['type']) ?> <?= esc($d['name']) ?></a>
+            <a href="<?= site_url('apparaten/' . $d['id']) ?>" class="dev-title text-decoration-none"><?= device_type_icon($d['type']) ?> <?= esc($d['name']) ?> <?= \App\Libraries\Network::dot($net[(int) $d['id']] ?? null) ?></a>
             <?php if (user_can('vault.manage')) : ?><a href="<?= site_url('apparaten/' . $d['id'] . '/bewerken') ?>" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a><?php endif ?>
         </div>
         <div class="small text-muted"><?= esc(implode(' · ', array_filter([$showCustomer ? ($d['customer_name'] ?? '') : null, $d['room'] ?? null, trim(($d['brand'] ?? '') . ' ' . ($d['model'] ?? ''))]))) ?></div>

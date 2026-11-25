@@ -19,6 +19,12 @@ class Dashboard extends BaseController
             'devices'   => user_can('vault.view') ? model(DeviceModel::class)->countAllResults() : null,
         ];
 
+        // Netwerk: offline klantapparaten bovenaan
+        if (user_can('vault.view') && \App\Libraries\Network::configured()) {
+            $data['netStatus']  = \App\Libraries\Network::status();
+            $data['netOffline'] = \App\Libraries\Network::offline();
+        }
+
         if (user_can('billing.view')) {
             $subs = model(SubscriptionModel::class)->withDetails()->where('subscriptions.status', 'active')->findAll();
 

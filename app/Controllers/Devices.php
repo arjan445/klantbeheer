@@ -16,7 +16,7 @@ use Throwable;
  */
 class Devices extends BaseController
 {
-    private const FIELDS = ['customer_id', 'site_id', 'type', 'name', 'room', 'brand', 'model', 'serial', 'firmware', 'ip', 'port', 'mac', 'url', 'username', 'notes', 'installed_at'];
+    private const FIELDS = ['customer_id', 'site_id', 'type', 'name', 'room', 'brand', 'model', 'serial', 'firmware', 'ip', 'port', 'mac', 'url', 'username', 'notes', 'installed_at', 'sold_at', 'purchase_invoice_id'];
 
     private function rules(): array
     {
@@ -28,6 +28,8 @@ class Devices extends BaseController
             'url'          => 'permit_empty|max_length[255]',
             'room'         => 'permit_empty|max_length[100]',
             'installed_at' => 'permit_empty|valid_date[Y-m-d]',
+            'sold_at'      => 'permit_empty|valid_date[Y-m-d]',
+            'purchase_invoice_id' => 'permit_empty|is_natural_no_zero|is_not_unique[purchase_invoices.id]',
         ];
     }
 
@@ -44,8 +46,11 @@ class Devices extends BaseController
             $model->where('devices.type', $type);
         }
 
+        $devices = $model->findAll();
+
         return $this->page('devices/index', [
-            'devices' => $model->findAll(),
+            'devices' => $devices,
+            'net'     => \App\Libraries\Network::statusMap(array_column($devices, 'id')),
             'type'    => $type,
             'ready'   => Vault::ready(),
         ], 'Apparaten & wachtwoorden');
@@ -55,8 +60,17 @@ class Devices extends BaseController
     {
         $device = $this->findOr404(DeviceModel::class, $id);
 
+        $quote = null;
+        if ($device['quote_line_id']) {
+            $quote = model(\App\Models\QuoteModel::class)->select('quotes.id, quotes.title, quotes.moneybird_number')
+                ->join('quote_lines', 'quote_lines.quote_id = quotes.id')->where('quote_lines.id', $device['quote_line_id'])->first();
+        }
+
         return $this->page('devices/show', [
             'device'   => $device,
+            'network'  => model(\App\Models\NetworkDeviceModel::class)->withContext()->where('network_devices.device_id', $id)->first(),
+            'invoice'  => $device['purchase_invoice_id'] ? model(\App\Models\PurchaseInvoiceModel::class)->withSupplier()->where('purchase_invoices.id', $device['purchase_invoice_id'])->first() : null,
+            'quote'    => $quote,
             'customer' => model(CustomerModel::class)->find($device['customer_id']),
             'site'     => $device['site_id'] ? model(SiteModel::class)->find($device['site_id']) : null,
             'log'      => model(VaultLogModel::class)
@@ -108,6 +122,8 @@ class Devices extends BaseController
             'customers' => model(CustomerModel::class)->orderBy('name')->findAll(),
             'sites'     => model(SiteModel::class)->orderBy('name')->findAll(),
             'ready'     => Vault::ready(),
+            'invoices'  => model(\App\Models\PurchaseInvoiceModel::class)->options(),
+            'suppliers' => model(\App\Models\SupplierModel::class)->orderBy('name')->findAll(),
         ];
 
         if (! $this->request->is('post')) {

@@ -15,7 +15,7 @@
     <script src="<?= base_url('assets/bootstrap/bootstrap.bundle.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.bootstrap5.min.js') ?>"></script>
-    <link href="<?= base_url('scripts/style.css?ver=8') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=9') ?>" rel="stylesheet">
     <meta name="csrf-name" content="<?= csrf_token() ?>">
     <meta name="csrf-hash" content="<?= csrf_hash() ?>">
 </head>
@@ -69,7 +69,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <li class="nav-item"><a class="nav-link <?= url_is('producten*') ? 'active' : '' ?>" href="<?= site_url('producten') ?>">Producten</a></li>
                 <?php endif ?>
                 <?php if (user_can('vault.view')) : ?>
-                <li class="nav-item"><a class="nav-link <?= url_is('apparaten*') ? 'active' : '' ?>" href="<?= site_url('apparaten') ?>">Apparaten</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle <?= url_is('apparaten*') || url_is('netwerk*') || url_is('scan*') || url_is('inkoopfacturen*') ? 'active' : '' ?>" href="#" data-bs-toggle="dropdown">Apparaten</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="<?= site_url('apparaten') ?>"><i class="bi bi-hdd-network"></i> Apparaten &amp; wachtwoorden</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('netwerk') ?>"><i class="bi bi-wifi"></i> Netwerk (UniFi/UISP)</a></li>
+                        <?php if (user_can('vault.manage')) : ?><li><a class="dropdown-item" href="<?= site_url('scan') ?>"><i class="bi bi-upc-scan"></i> Doosscan</a></li><?php endif ?>
+                        <li><a class="dropdown-item" href="<?= site_url('inkoopfacturen') ?>"><i class="bi bi-receipt"></i> Inkoopfacturen</a></li>
+                    </ul>
+                </li>
                 <?php endif ?>
                 <?php if (user_can('users.manage') || user_can('settings.manage')) : ?>
                 <li class="nav-item dropdown">
@@ -80,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <?php endif ?>
                         <?php if (user_can('settings.manage')) : ?>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/moneybird') ?>">Moneybird</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('beheer/netwerk') ?>">Netwerk (UniFi &amp; UISP)</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/uren') ?>">Uren &amp; kilometers</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/kluislog') ?>">Kluislogboek</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/diagnose') ?>">Diagnose</a></li>

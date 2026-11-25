@@ -63,7 +63,8 @@
 <?php if (isset($devices)) : ?>
 <div class="tab-pane fade show active" id="t-devices">
     <?php if (user_can('vault.manage')) : ?>
-    <div class="mb-3"><a href="<?= site_url('apparaten/nieuw?klant=' . $c['id'] . (count($sites) === 1 ? '&locatie=' . $sites[0]['id'] : '')) ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Apparaat toevoegen</a></div>
+    <div class="mb-3 d-flex gap-2 flex-wrap"><a href="<?= site_url('apparaten/nieuw?klant=' . $c['id'] . (count($sites) === 1 ? '&locatie=' . $sites[0]['id'] : '')) ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Apparaat toevoegen</a>
+        <a href="<?= site_url('scan?klant=' . $c['id'] . (count($sites) === 1 ? '&locatie=' . $sites[0]['id'] : '')) ?>" class="btn btn-outline-primary"><i class="bi bi-upc-scan"></i> Doosscan</a></div>
     <?php endif ?>
     <?php if ($devices === []) : ?>
         <p class="text-muted mb-0">Nog geen apparaten of wachtwoorden bij deze klant.</p>

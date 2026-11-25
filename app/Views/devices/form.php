@@ -130,6 +130,29 @@ $brands  = array_values(array_unique(array_filter(array_merge(array_column($type
     <datalist id="models"></datalist>
 </div></div>
 
+<!-- Herkomst: verkocht en ingekocht -->
+<div class="card mb-3"><div class="card-body">
+    <details <?= ! empty($d['sold_at']) || ! empty($d['purchase_invoice_id']) ? 'open' : '' ?>>
+        <summary class="small fw-semibold">Verkoop &amp; inkoop<?php if (! empty($d['purchase_invoice_id']) || ! empty($d['sold_at'])) : ?> <span class="text-muted fw-normal">· ingevuld</span><?php endif ?></summary>
+        <div class="row g-2 mt-1">
+            <div class="col-5 col-md-3"><label class="form-label small mb-1">Verkocht op</label><input type="date" name="sold_at" class="form-control" value="<?= esc($d['sold_at'] ?? '') ?>"></div>
+            <div class="col-7 col-md-9">
+                <label class="form-label small mb-1">Inkoopfactuur</label>
+                <div class="input-group">
+                    <select name="purchase_invoice_id" id="purchase_invoice_id" class="form-select">
+                        <option value="">—</option>
+                        <?php foreach ($invoices as $inv) : ?><option value="<?= $inv['id'] ?>" <?= (string) ($d['purchase_invoice_id'] ?? '') === (string) $inv['id'] ? 'selected' : '' ?>><?= esc(\App\Models\PurchaseInvoiceModel::label($inv)) ?></option><?php endforeach ?>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#new-inv" title="Nieuwe inkoopfactuur"><i class="bi bi-plus-lg"></i></button>
+                </div>
+            </div>
+            <div class="col-12 collapse" id="new-inv">
+                <?= view('purchase/_quick', ['suppliers' => $suppliers, 'target' => '#purchase_invoice_id']) ?>
+            </div>
+        </div>
+    </details>
+</div></div>
+
 <div class="device-actions d-flex gap-2">
     <button class="btn btn-primary flex-fill" name="next" value=""><i class="bi bi-check2"></i> Opslaan</button>
     <button class="btn btn-outline-primary flex-fill" name="next" value="copy" title="Opslaan en meteen het volgende apparaat invullen (naam en IP opgehoogd)"><i class="bi bi-plus-lg"></i> Opslaan &amp; volgende</button>

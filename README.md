@@ -20,6 +20,13 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
   - Wachtwoorden en geheime notities (zoals de Hik-Connect-verificatiecode of de wifi-sleutel) worden **versleuteld** opgeslagen met AES-256 en HMAC.
   - Je ziet een wachtwoord pas na een klik op het oogje. Na 30 seconden wordt het weer verborgen. Elke keer dat iemand een wachtwoord bekijkt of wijzigt, komt dat in het **kluislogboek**.
   - Met **"Opslaan & volgende"** maak je snel een reeks camera's aan. De gegevens van het vorige apparaat worden overgenomen en het IP-adres gaat er één omhoog.
+- **Netwerk (UniFi & UISP)**: haalt elke 5 minuten alle apparaten op uit de UniFi Site Manager en je eigen UISP-controller, met MAC, IP, model, firmware en online status.
+  - Elke UniFi- of UISP-site koppel je één keer aan een **locatie van een klant** (met voorstel op naam).
+  - **Offline bovenaan het dashboard**: welke klantapparaten nu offline zijn, per klant en locatie, en sinds wanneer. Zet per apparaat *Hoort online te zijn* uit als het niet hoeft.
+  - **Niet gekoppeld**: apparaten die nog niet in de kluis staan, bijvoorbeeld wat je al eerder leverde. Per apparaat kies je *nieuw in de kluis* of *hoort bij* een bestaand apparaat (bijv. uit een offerte); er staat een voorstel klaar op soort en model. Zelfde MAC- of serienummer = automatisch gekoppeld.
+  - Een console met meerdere sites (gehoste controller): de apparaten per site komen via de Cloud Connector. Lukt dat niet, dan komen ze onder de console en koppel je met de hand.
+- **Doosscan** (telefoon): scan met de camera de barcode van de doos of het label (UniFi/UISP-MAC, Hikvision-serienummer en Hik-Connect-QR, Ajax Device-ID). Je kiest vooraf klant, locatie, eventueel de offerte en de inkoopfactuur; per scan staat het best passende apparaat zonder serienummer al geselecteerd. *Opslaan & volgende* en door. De Hik-Connect-verificatiecode gaat versleuteld in de geheime notitie.
+- **Inkoopfacturen**: per apparaat zie je op welke inkoopfactuur het is geleverd en wanneer het verkocht is (apparaten uit een geaccepteerde offerte krijgen automatisch de verkoopdatum).
 - **Zoeken** op klant, plaats, IP-adres, serienummer, MAC-adres of domeinnaam.
 - **Rollen**: *Admin* mag alles. *Administratie* doet klanten, abonnementen en facturatie, maar heeft geen toegang tot de kluis. *Monteur* doet klanten, apparaten en wachtwoorden, maar ziet geen bedragen.
 
@@ -66,6 +73,23 @@ Stel je kortingen en opslag in onder **Producten › Leveranciers & marges**.
 ### DSD Europe (optioneel)
 
 Maak in DSD onder **Instellingen › API Keys** een sleutel aan en zet die in `.env` als `dsd.apiKey`. Klik daarna in de app op **Licenties › Ophalen uit DSD**.
+
+### UniFi en UISP (optioneel)
+
+Open **Beheer › Netwerk** en vul in:
+
+- **UniFi**: een API-sleutel van *unifi.ui.com › API* (Site Manager).
+- **UISP**: het adres van je controller en een API-token (*Settings › Users › API tokens*, alleen-lezen is genoeg).
+
+Sleutels worden versleuteld opgeslagen. Met *Opslaan & verbinding testen* zie je meteen hoeveel sites en apparaten er zijn. Zet daarna de cronjob aan:
+
+```
+*/5 * * * *  cd /pad/naar/klantbeheer && php spark klantbeheer:netwerk
+```
+
+Koppel in **Apparaten › Netwerk › Sites** elke site aan een klantlocatie. Draait de cron een half uur niet, dan zie je dat op het dashboard.
+
+De doosscan gebruikt de camera van je telefoon en werkt daarom alleen via https.
 
 ### Herinnering per mail (optioneel)
 

@@ -7,6 +7,9 @@ use App\Controllers\Customers;
 use App\Controllers\Dashboard;
 use App\Controllers\Devices;
 use App\Controllers\Hours;
+use App\Controllers\Networks;
+use App\Controllers\PurchaseInvoices;
+use App\Controllers\Scan;
 use App\Controllers\Domains;
 use App\Controllers\Products;
 use App\Controllers\Quotes;
@@ -132,6 +135,34 @@ $routes->group('apparaten', ['filter' => 'can:vault.view'], static function ($ro
     $routes->post('(:num)/geheim', [Devices::class, 'reveal/$1'], ['filter' => 'throttle:60,60']);
 });
 
+// Netwerk: UniFi/UISP-status, sites koppelen, inbox
+$routes->group('netwerk', ['filter' => 'can:vault.view'], static function ($routes) {
+    $routes->get('/', [Networks::class, 'index']);
+    $routes->post('synchroniseren', [Networks::class, 'sync'], ['filter' => 'can:vault.manage']);
+    $routes->post('site/(:num)', [Networks::class, 'linkSite/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('koppelen', [Networks::class, 'assign'], ['filter' => 'can:vault.manage']);
+    $routes->post('apparaat/(:num)/bewaken', [Networks::class, 'monitor/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('apparaat/(:num)/ontkoppelen', [Networks::class, 'unlink/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('apparaat/(:num)/terugzetten', [Networks::class, 'restore/$1'], ['filter' => 'can:vault.manage']);
+});
+
+// Doosscan (mobiel): serienummers/MAC scannen en aan apparaten koppelen
+$routes->group('scan', ['filter' => 'can:vault.manage'], static function ($routes) {
+    $routes->get('/', [Scan::class, 'index']);
+    $routes->post('zoek', [Scan::class, 'lookup']);
+    $routes->post('opslaan', [Scan::class, 'save']);
+});
+
+// Inkoopfacturen (waarop is een apparaat geleverd?)
+$routes->group('inkoopfacturen', ['filter' => 'can:vault.view'], static function ($routes) {
+    $routes->get('/', [PurchaseInvoices::class, 'index']);
+    $routes->match(['GET', 'POST'], 'nieuw', [PurchaseInvoices::class, 'create'], ['filter' => 'can:vault.manage']);
+    $routes->post('snel', [PurchaseInvoices::class, 'quick'], ['filter' => 'can:vault.manage']);
+    $routes->get('(:num)', [PurchaseInvoices::class, 'show/$1']);
+    $routes->match(['GET', 'POST'], '(:num)/bewerken', [PurchaseInvoices::class, 'edit/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('(:num)/verwijderen', [PurchaseInvoices::class, 'delete/$1'], ['filter' => 'can:vault.manage']);
+});
+
 // Beheer
 // Taken (+ openbare iCal-feed met geheime sleutel)
 $routes->get('agenda/(:segment)', [Todos::class, 'ical/$1']);
@@ -161,6 +192,7 @@ $routes->group('beheer', static function ($routes) {
     $routes->get('gebruikers', [Users::class, 'index'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'gebruikers/nieuw', [Users::class, 'create'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'gebruikers/(:num)', [Users::class, 'edit/$1'], ['filter' => 'can:users.manage']);
+    $routes->match(['GET', 'POST'], 'netwerk', [Networks::class, 'settings'], ['filter' => 'can:settings.manage']);
     $routes->get('moneybird', [Settings::class, 'moneybird'], ['filter' => 'can:settings.manage']);
     $routes->post('moneybird/contacten', [Settings::class, 'importContacts'], ['filter' => 'can:settings.manage']);
     $routes->get('kluislog', [Settings::class, 'vaultLog'], ['filter' => 'can:settings.manage']);
