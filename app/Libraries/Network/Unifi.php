@@ -26,6 +26,9 @@ use Throwable;
  */
 class Unifi extends Connector
 {
+    /** Foutmelding van de eigen controller, voor in de meldingen */
+    public ?string $directError = null;
+
     private string $apiKey;
     private string $base;
 
@@ -140,15 +143,23 @@ class Unifi extends Connector
                 $unknown    = array_diff($macs, array_keys($siteForMac));
                 $lastMap    = (int) Network::setting('unifi.sitemap.' . $hostId);
                 if ($unknown !== [] || $lastMap < time() - self::REMAP_HOURS * 3600) {
-                    [$fresh, $failed] = $this->macsPerSite($hostId, $hostSites);
+                    [$fresh, $failed, $selfHosted] = $this->macsPerSite($hostId, $hostSites);
                     $siteForMac       = $fresh + $siteForMac; // nieuw gaat voor oud
                     if ($failed === []) {
                         \App\Libraries\Setting::set('unifi.sitemap.' . $hostId, (string) time());
                     }
                     $still = array_diff($macs, array_keys($siteForMac));
                     if ($failed !== [] && $still !== []) {
-                        $notes[] = 'Console ' . ($hostNames[$hostId] ?? $hostId) . ': ' . count($still) . ' apparaat/apparaten nog zonder site, want ophalen lukte niet voor '
-                            . implode(', ', $failed) . '. Wordt bij de volgende synchronisatie opnieuw geprobeerd.';
+                        $console = 'Console ' . ($hostNames[$hostId] ?? $hostId);
+                        if ($this->directError !== null) {
+                            $notes[] = $console . ': ' . $this->directError;
+                        } elseif ($selfHosted) {
+                            $notes[] = $console . ' is een zelf gehoste controller: de UniFi-cloud weet niet bij welke site de apparaten horen. '
+                                . 'Vul bij Beheer › Netwerk het adres en een lokaal account van deze controller in, dan worden ' . count($still) . ' apparaten automatisch per site ingedeeld.';
+                        } else {
+                            $notes[] = $console . ': ' . count($still) . ' apparaat/apparaten nog zonder site, want ophalen lukte niet voor '
+                                . implode(', ', $failed) . '. Wordt bij de volgende synchronisatie opnieuw geprobeerd.';
+                        }
                     }
                 }
             }
@@ -229,12 +240,38 @@ class Unifi extends Connector
      * Network API. Een site die niet lukt, slaat hij over.
      *
      * @param list<array> $hostSites
-     * @return array{0: array<string,string>, 1: list<string>}  [indeling, namen van mislukte sites]
+     * @return array{0: array<string,string>, 1: list<string>, 2: bool}  [indeling, mislukte sites, cloud kan deze console niet uitvragen]
      */
     private function macsPerSite(string $hostId, array $hostSites): array
     {
         $proxy = '/v1/connector/consoles/' . rawurlencode($hostId) . '/proxy/network';
         $map   = [];
+
+        // 0. Eigen controller (zelf gehost): direct, op de interne sitenaam
+        $direct = new UnifiController();
+        if ($direct->configured()) {
+            $byName = [];
+            foreach ($hostSites as $hs) {
+                if ($hs['description']) {
+                    $byName[$hs['description']] = $hs;
+                }
+            }
+            try {
+                [$found] = $direct->macsBySite(array_keys($byName));
+                foreach ($found as $name => $macs) {
+                    foreach ($macs as $mac) {
+                        $map[$mac] = $byName[$name]['external_id'];
+                    }
+                }
+                // Gelukt: deze sites niet meer via de cloud proberen
+                $hostSites = array_values(array_filter($hostSites, static fn ($hs) => ! isset($found[$hs['description']])));
+                if ($hostSites === []) {
+                    return [$map, [], false];
+                }
+            } catch (Throwable $e) {
+                $this->directError = $e->getMessage();
+            }
+        }
 
         // Integration API: lijst met sites (id + interne naam)
         $integration = [];
@@ -244,6 +281,10 @@ class Unifi extends Connector
             }
         } catch (Throwable $e) {
             log_message('info', 'UniFi ' . $hostId . ': integration-sites niet bereikbaar: ' . $e->getMessage());
+            // "device is offline": de cloud kan deze console niet uitvragen (zelf gehoste controller)
+            if ($e->getCode() === 404 && stripos($e->getMessage(), 'offline') !== false) {
+                return [$map, array_column($hostSites, 'name'), true];
+            }
         }
 
         $failed   = [];
@@ -308,7 +349,7 @@ class Unifi extends Connector
             }
         }
 
-        return [$map, $failed];
+        return [$map, $failed, false];
     }
 
     public static function mapStatus(?string $raw): string
