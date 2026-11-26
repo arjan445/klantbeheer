@@ -132,3 +132,6 @@ writable/firebase-service-account.json
 
 # Lokale SQLite-testdatabase
 writable/*.db
+
+# Slotbestanden van synchronisatie en geplande taken
+writable/*.lock
