@@ -25,6 +25,7 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
   - **Offline bovenaan het dashboard**: welke klantapparaten nu offline zijn, per klant en locatie, en sinds wanneer. Zet per apparaat *Hoort online te zijn* uit als het niet hoeft.
   - **Niet gekoppeld**: apparaten die nog niet in de kluis staan, bijvoorbeeld wat je al eerder leverde. Per apparaat kies je *nieuw in de kluis* of *hoort bij* een bestaand apparaat (bijv. uit een offerte); er staat een voorstel klaar op soort en model. Zelfde MAC- of serienummer = automatisch gekoppeld.
   - Een console met meerdere sites (gehoste controller): de apparaten per site komen via de Cloud Connector. Lukt dat niet, dan komen ze onder de console en koppel je met de hand.
+- **Topologie** per UniFi- of UISP-site (*Apparaten › Netwerk › Sites › Topologie*): een boom van welk apparaat aan welk apparaat hangt, met poort en soort verbinding (kabel, wifi, straalverbinding, VPN). Automatisch uit UniFi (via je eigen controller of de cloud) en UISP. Tik op een apparaat om de verbinding zelf te corrigeren: dat staat dan vast en de sync verandert het niet meer. Een UISP-straalverbinding binnen een UniFi-site voeg je toe met *Apparaat uit andere site toevoegen*; wat je eronder hangt, verhuist mee.
 - **Doosscan** (telefoon): scan met de camera de barcode van de doos of het label (UniFi/UISP-MAC, Hikvision-serienummer en Hik-Connect-QR, Ajax Device-ID). Je kiest vooraf klant, locatie, eventueel de offerte en de inkoopfactuur; per scan staat het best passende apparaat zonder serienummer al geselecteerd. *Opslaan & volgende* en door. De Hik-Connect-verificatiecode gaat versleuteld in de geheime notitie.
 - **Inkoopfacturen**: per apparaat zie je op welke inkoopfactuur het is geleverd en wanneer het verkocht is (apparaten uit een geaccepteerde offerte krijgen automatisch de verkoopdatum).
 - **Zoeken** op klant, plaats, IP-adres, serienummer, MAC-adres of domeinnaam.
@@ -73,6 +74,14 @@ Stel je kortingen en opslag in onder **Producten › Leveranciers & marges**.
 ### DSD Europe (optioneel)
 
 Maak in DSD onder **Instellingen › API Keys** een sleutel aan en zet die in `.env` als `dsd.apiKey`. Klik daarna in de app op **Licenties › Ophalen uit DSD**.
+
+### Zonder commandoregel (Plesk): Beheer › Onderhoud
+
+Op hosting zonder `php spark` doe je het onderhoud in **Beheer › Onderhoud**:
+
+1. **Versleutelingssleutel**: kopieer de regel naar `.env`.
+2. **Database bijwerken** na elke update: één knop voert alle openstaande migraties uit.
+3. **Geplande taken**: per taak een link met een geheime sleutel. Zet die in Plesk › Geplande taken als *URL ophalen*.
 
 ### UniFi en UISP (optioneel)
 

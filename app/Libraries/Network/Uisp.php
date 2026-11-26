@@ -94,10 +94,28 @@ class Uisp extends Connector
                 'raw_status'       => $raw,
                 'status'           => $status,
                 'last_seen_at'     => self::toDateTime($over['lastSeen'] ?? null) ?? ($status === 'online' ? date('Y-m-d H:i:s') : null),
+                // Topologie: een station hangt draadloos aan zijn AP
+                'uplink'           => self::uplink($d),
             ];
         }
 
         return ['sites' => $sites, 'devices' => $devices, 'notes' => []];
+    }
+
+    /** Bovenliggend apparaat volgens UISP (station -> AP), of null */
+    private static function uplink(array $d): ?array
+    {
+        $attr = is_array($d['attributes'] ?? null) ? $d['attributes'] : [];
+        $ap   = $attr['apDevice']['id'] ?? null;
+        if (is_string($ap) && $ap !== '') {
+            return ['parent_external_id' => $ap, 'parent_mac' => null, 'parent_port' => null, 'local_port' => null, 'type' => 'wireless'];
+        }
+        $parent = $attr['parentId'] ?? null;
+        if (is_string($parent) && $parent !== '') {
+            return ['parent_external_id' => $parent, 'parent_mac' => null, 'parent_port' => null, 'local_port' => null, 'type' => 'wired'];
+        }
+
+        return null;
     }
 
     public static function mapStatus(?string $raw): string

@@ -352,6 +352,46 @@ class Unifi extends Connector
         return [$map, $failed, false];
     }
 
+    /**
+     * Apparatenlijst met uplinks van één site via de Cloud Connector (oudere Network API).
+     * Werkt alleen bij consoles met UniFi OS; een zelf gehoste controller loopt via
+     * UnifiController.
+     *
+     * @return list<array>
+     */
+    public function legacyDevices(string $hostId, string $siteName): array
+    {
+        $path = '/v1/connector/consoles/' . rawurlencode($hostId) . '/proxy/network/api/s/' . rawurlencode($siteName) . '/stat/device';
+
+        return $this->get($path, [], 2, 40)['data'] ?? [];
+    }
+
+    /**
+     * Uplink van één apparaat uit een stat/device-regel.
+     *
+     * @return array{parent_mac:?string, parent_port:?string, local_port:?string, type:string}|null
+     */
+    public static function uplinkOf(array $d): ?array
+    {
+        $u = is_array($d['uplink'] ?? null) ? $d['uplink'] : [];
+        if (empty($u['uplink_mac']) && is_array($d['last_uplink'] ?? null)) {
+            $u = $d['last_uplink'] + $u; // offline: laatst bekende uplink
+        }
+        $mac = self::normalizeMac($u['uplink_mac'] ?? null);
+        if ($mac === null) {
+            return null;
+        }
+        $wireless = ($u['type'] ?? '') === 'wireless' || ! empty($u['ap_mac']);
+        $port     = $u['uplink_remote_port'] ?? null;
+
+        return [
+            'parent_mac'  => $mac,
+            'parent_port' => $wireless || $port === null || $port === '' ? null : (string) $port,
+            'local_port'  => isset($u['port_idx']) && ! $wireless ? (string) $u['port_idx'] : null,
+            'type'        => $wireless ? 'wireless' : 'wired',
+        ];
+    }
+
     public static function mapStatus(?string $raw): string
     {
         $raw = strtolower((string) $raw);

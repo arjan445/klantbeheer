@@ -133,6 +133,11 @@ class Network
                 }
                 unset($stored['errors']);
                 $r = array_merge($r, $stored, ['ok' => true, 'notes' => $notes]);
+                try {
+                    Topology::applyFromDevices($c->platform(), $data['devices']);
+                } catch (Throwable $e) {
+                    log_message('error', 'Topologie ' . $c->label() . ': ' . $e->getMessage());
+                }
             } catch (Throwable $e) {
                 $r['error'] = $e->getMessage();
                 log_message('error', 'Netwerk ' . $c->label() . ': ' . $e->getMessage());
@@ -142,6 +147,11 @@ class Network
 
         if ($results !== []) {
             $linked = self::autoLink();
+            try {
+                Topology::refreshUnifi(); // alleen sites die aan de beurt zijn (eens per 6 uur)
+            } catch (Throwable $e) {
+                log_message('error', 'Topologie UniFi: ' . $e->getMessage());
+            }
             foreach ($results as &$res) {
                 $res['linked'] = $res['ok'] ? $linked : 0;
                 $linked        = 0; // één keer tellen

@@ -77,6 +77,18 @@ class UnifiController
     }
 
     /**
+     * Volledige apparatenlijst van één site (met uplink-gegevens voor de topologie).
+     *
+     * @return list<array>
+     */
+    public function devices(string $siteName): array
+    {
+        $this->login();
+
+        return $this->request('GET', '/api/s/' . rawurlencode($siteName) . '/stat/device')['data'] ?? [];
+    }
+
+    /**
      * Test: inloggen en de sites tellen.
      *
      * @return list<array{name:string, desc:string}>
