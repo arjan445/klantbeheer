@@ -89,6 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <?php if (user_can('settings.manage')) : ?>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/moneybird') ?>">Moneybird</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/netwerk') ?>">Netwerk (UniFi &amp; UISP)</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="<?= site_url('beheer/onderhoud') ?>"><i class="bi bi-tools"></i> Onderhoud</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/uren') ?>">Uren &amp; kilometers</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/kluislog') ?>">Kluislogboek</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/diagnose') ?>">Diagnose</a></li>

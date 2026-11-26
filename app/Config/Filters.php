@@ -78,9 +78,9 @@ class Filters extends BaseFilters
             // 'honeypot',
             'csrf',
             // Shield: log in required, except on these public pages
-            'session' => ['except' => ['login*', 'auth/a/*', 'agenda/*']],
+            'session' => ['except' => ['login*', 'auth/a/*', 'agenda/*', 'cron/*']],
             // Inactive accounts are logged out on every request (also magic-link / remember-me logins)
-            'activeuser',
+            'activeuser' => ['except' => ['cron/*']],
             // 'invalidchars',
         ],
         'after' => [

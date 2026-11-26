@@ -11,6 +11,7 @@ use App\Controllers\Networks;
 use App\Controllers\PurchaseInvoices;
 use App\Controllers\Scan;
 use App\Controllers\Topologies;
+use App\Controllers\Maintenance;
 use App\Controllers\Domains;
 use App\Controllers\Products;
 use App\Controllers\Quotes;
@@ -199,8 +200,14 @@ $routes->group('beheer', static function ($routes) {
     $routes->match(['GET', 'POST'], 'gebruikers/nieuw', [Users::class, 'create'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'gebruikers/(:num)', [Users::class, 'edit/$1'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'netwerk', [Networks::class, 'settings'], ['filter' => 'can:settings.manage']);
+    $routes->get('onderhoud', [Maintenance::class, 'index'], ['filter' => 'can:settings.manage']);
+    $routes->post('onderhoud/migreren', [Maintenance::class, 'migrate'], ['filter' => 'can:settings.manage']);
+    $routes->post('onderhoud/cron-sleutel', [Maintenance::class, 'newToken'], ['filter' => 'can:settings.manage']);
     $routes->get('moneybird', [Settings::class, 'moneybird'], ['filter' => 'can:settings.manage']);
     $routes->post('moneybird/contacten', [Settings::class, 'importContacts'], ['filter' => 'can:settings.manage']);
     $routes->get('kluislog', [Settings::class, 'vaultLog'], ['filter' => 'can:settings.manage']);
     $routes->get('diagnose', [Settings::class, 'diagnose'], ['filter' => 'can:settings.manage']);
 });
+
+// Geplande taken via een URL (Plesk "URL ophalen"), beveiligd met een geheime sleutel
+$routes->get('cron/(:segment)/(:segment)', [Maintenance::class, 'cron/$1/$2']);
