@@ -17,12 +17,17 @@ class Topologies extends BaseController
     public function show($id)
     {
         $site = $this->findOr404(NetworkSiteModel::class, $id);
+        // Onderdeel van een gecombineerde installatie: naar de hoofdsite
+        if (($main = Topology::primary((int) $site['id'])) !== (int) $site['id']) {
+            return redirect()->to(site_url('netwerk/topologie/' . $main));
+        }
         $loc  = $site['site_id'] ? model(SiteModel::class)->select('sites.*, customers.name AS customer_name')
             ->join('customers', 'customers.id = sites.customer_id')->where('sites.id', $site['site_id'])->first() : null;
 
         // Andere topologieën om naar te springen
-        $others = model(NetworkSiteModel::class)->select('id, platform, name')->where('ignored', 0)
-            ->notLike('external_id', 'host:', 'after')->orderBy('name')->findAll();
+        $others = array_values(array_filter(model(NetworkSiteModel::class)->select('id, platform, name')->where('ignored', 0)
+            ->notLike('external_id', 'host:', 'after')->orderBy('name')->findAll(), static fn ($o) => Topology::primary((int) $o['id']) === (int) $o['id']));
+        $parts = model(NetworkSiteModel::class)->whereIn('id', Topology::group((int) $site['id']))->findAll();
 
         return $this->page('network/topology', [
             'site'    => $site,
@@ -34,6 +39,7 @@ class Topologies extends BaseController
             'manualIcons'  => Topology::MANUAL_ICONS,
             'types'   => Topology::TYPES,
             'others'  => $others,
+            'parts'   => $parts,
             'manage'  => user_can('vault.manage'),
             'lastAt'  => (int) Network::setting('topology.at.' . $site['id']) ?: null,
         ], 'Topologie · ' . $site['name']);
@@ -43,6 +49,9 @@ class Topologies extends BaseController
     public function pdf($id)
     {
         $site = $this->findOr404(NetworkSiteModel::class, $id);
+        if (($main = Topology::primary((int) $site['id'])) !== (int) $site['id']) {
+            return redirect()->to(site_url('netwerk/topologie/' . $main . '/pdf'));
+        }
         $loc  = $site['site_id'] ? model(SiteModel::class)->select('sites.*, customers.name AS customer_name')
             ->join('customers', 'customers.id = sites.customer_id')->where('sites.id', $site['site_id'])->first() : null;
 
@@ -166,7 +175,10 @@ class Topologies extends BaseController
     {
         $site = $this->findOr404(NetworkSiteModel::class, $id);
         @set_time_limit(120);
-        $notes = $site['platform'] === 'unifi' ? Topology::refreshUnifi((int) $site['id']) : [];
+        $notes = [];
+        foreach (model(NetworkSiteModel::class)->whereIn('id', Topology::group((int) $site['id']))->where('platform', 'unifi')->findAll() as $part) {
+            array_push($notes, ...Topology::refreshUnifi((int) $part['id']));
+        }
 
         return $this->json(['nodes' => Topology::nodes((int) $site['id']), 'notes' => $notes]);
     }

@@ -201,6 +201,45 @@ class Network
         return $out;
     }
 
+    /** "UniFi", "UISP" of "UniFi + UISP" voor de sites van één installatie */
+    public static function groupLabel(array $parts): string
+    {
+        $labels = array_values(array_unique(array_map(static fn ($p) => self::platformLabel($p['platform']), $parts)));
+        sort($labels);
+
+        return implode(' + ', array_reverse($labels)) ?: 'Netwerk';
+    }
+
+    /**
+     * Netwerksites omzetten naar de topologieën om te openen: een site die bij een
+     * andere is gevoegd, wordt de hoofdsite (één knop per installatie).
+     *
+     * @param list<array> $rows network_sites-rijen (id, name, platform)
+     * @return list<array{id:int, name:string, label:string}>
+     */
+    public static function topoSites(array $rows): array
+    {
+        static $all = null;
+        if ($all === null) {
+            $all = [];
+            foreach (model(NetworkSiteModel::class)->select('id, name, platform')->findAll() as $r) {
+                $all[(int) $r['id']] = $r;
+            }
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $main = Topology::primary((int) $r['id']);
+            if (isset($out[$main])) {
+                continue;
+            }
+            $parts      = array_values(array_filter(array_map(static fn ($id) => $all[$id] ?? null, Topology::group($main))));
+            $m          = $all[$main] ?? $r;
+            $out[$main] = ['id' => $main, 'name' => $m['name'], 'label' => self::groupLabel($parts ?: [$m]), 'combined' => count($parts) > 1];
+        }
+
+        return array_values($out);
+    }
+
     /** Kleur en tekst voor de status van een SD-WAN-verband */
     public static function vpnState(string $state): array
     {

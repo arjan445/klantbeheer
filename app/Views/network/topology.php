@@ -10,8 +10,8 @@ foreach (device_types() as $k => $t) {
     <div class="min-w-0">
         <a href="<?= site_url('netwerk?tab=sites') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Netwerk</a>
         <h3 class="mb-0 text-truncate"><i class="bi bi-diagram-3"></i> <?= esc($site['name']) ?></h3>
-        <div class="small text-muted"><?= esc(Network::platformLabel($site['platform'])) ?><?= $loc ? ' · <a href="' . site_url('klanten/' . $loc['customer_id']) . '">' . esc($loc['customer_name']) . '</a> · ' . esc($loc['name']) : '' ?><?= ! empty($site['fabric']) ? ' · fabric ' . esc($site['fabric']) : '' ?></div>
-        <?php if (! empty($site['vpn'])) : ?><div class="mt-1"><?= view('network/_vpn', ['site' => $site, 'full' => true]) ?></div><?php endif ?>
+        <div class="small text-muted"><?= esc(Network::groupLabel($parts)) ?><?= count($parts) > 1 ? ' · ' . esc(implode(' + ', array_column($parts, 'name'))) : '' ?><?= $loc ? ' · <a href="' . site_url('klanten/' . $loc['customer_id']) . '">' . esc($loc['customer_name']) . '</a> · ' . esc($loc['name']) : '' ?><?= ! empty($site['fabric']) ? ' · fabric ' . esc($site['fabric']) : '' ?></div>
+        <?php foreach ($parts as $pt) : ?><?php if (! empty($pt['vpn'])) : ?><div class="mt-1"><?= view('network/_vpn', ['site' => $pt, 'full' => true]) ?></div><?php endif ?><?php endforeach ?>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a href="<?= site_url('netwerk/topologie/' . $site['id'] . '/pdf') ?>" target="_blank" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
@@ -19,7 +19,7 @@ foreach (device_types() as $k => $t) {
             <option value="">Andere site…</option>
             <?php foreach ($others as $o) : ?><option value="<?= site_url('netwerk/topologie/' . $o['id']) ?>" <?= (int) $o['id'] === (int) $site['id'] ? 'selected' : '' ?>><?= esc(Network::platformLabel($o['platform']) . ' · ' . $o['name']) ?></option><?php endforeach ?>
         </select>
-        <?php if ($manage && $site['platform'] === 'unifi') : ?>
+        <?php if ($manage && in_array('unifi', array_column($parts, 'platform'), true)) : ?>
             <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" id="topo-refresh"><i class="bi bi-arrow-repeat"></i> Verbindingen ophalen</button>
         <?php endif ?>
     </div>
@@ -158,7 +158,7 @@ foreach (device_types() as $k => $t) {
     const MANAGE = <?= $manage ? 'true' : 'false' ?>;
     let nodes = <?= json_encode($nodes, JSON_UNESCAPED_UNICODE) ?>;
     // SD-WAN: alleen een label op de gateway, niet de hele mesh
-    const VPN = <?= json_encode(array_map(static fn ($v) => ['state' => $v['state'], 'role' => $v['role'], 'up' => $v['up'], 'total' => $v['total'], 'name' => $v['name']], Network::vpn($site)), JSON_UNESCAPED_UNICODE) ?>;
+    const VPN = <?= json_encode(array_merge(...array_map(static fn ($pt) => array_map(static fn ($v) => ['state' => $v['state'], 'role' => $v['role'], 'up' => $v['up'], 'total' => $v['total'], 'name' => $v['name']], Network::vpn($pt)), $parts ?: [$site])), JSON_UNESCAPED_UNICODE) ?>;
 
     const meta = document.querySelector('meta[name="csrf-hash"]');
     const csrfName = document.querySelector('meta[name="csrf-name"]').content;

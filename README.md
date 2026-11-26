@@ -27,6 +27,7 @@ Webapp voor het eigen bedrijf, gebouwd op dezelfde basis als het LAT-platform (C
   - Een console met meerdere sites (gehoste controller): de apparaten per site komen via de Cloud Connector. Lukt dat niet, dan komen ze onder de console en koppel je met de hand.
 - **Klantenkaart** (dashboard en *Netwerk › Kaart*): elke klantlocatie als stip. Rood = apparaat offline, oranje = SD-WAN/VPN niet in orde, groen = alles online, grijs = niet bewaakt. Tik op een stip voor wat er mis is en de topologie. Adressen worden vanzelf opgezocht via PDOK (gratis, zonder sleutel), anders via OpenRouteService.
 - **Topologie** per UniFi- of UISP-site (*Apparaten › Netwerk › Sites › Topologie*): een boom van welk apparaat aan welk apparaat hangt, met poort en soort verbinding (kabel, wifi, straalverbinding, VPN). Automatisch uit UniFi (via je eigen controller of de cloud) en UISP. Tik op een apparaat om de verbinding zelf te corrigeren: dat staat dan vast en de sync verandert het niet meer. Een UISP-straalverbinding binnen een UniFi-site voeg je toe met *Apparaat uit andere site toevoegen*; wat je eronder hangt, verhuist mee.
+  - **Gecombineerde installatie** (UniFi + UISP): bij *Netwerk › Sites* kies je per site *Losse installatie* of *Combineren met…*. Samen één topologie, één knop bij de klant en één PDF in de storingsmail.
 - **Storingsmails** (*Beheer › Netwerk › Storingsmeldingen*): is een bewaakt apparaat langer dan 30 minuten offline, dan krijgt de klant één mail in huisstijl met alle apparaten die nu niet bereikbaar zijn, op volgorde van de topologie (bovenaan wat hoog in de boom zit, met "waarschijnlijk doordat ..." bij wat erachter hangt), een tip wat hij zelf kan controleren en een eenvoudige netwerk-PDF zonder IP/MAC. Per storing één mail. Standaard in **testmodus**: alles gaat naar het testadres of de beheerders. Voorbeeld en testmail op dezelfde pagina. Bij het aanzetten worden storingen die al liepen niet gemeld. Vereist `email.*` in `.env`.
 - **Doosscan** (telefoon): scan met de camera de barcode van de doos of het label (UniFi/UISP-MAC, Hikvision-serienummer en Hik-Connect-QR, Ajax Device-ID). Je kiest vooraf klant, locatie, eventueel de offerte en de inkoopfactuur; per scan staat het best passende apparaat zonder serienummer al geselecteerd. *Opslaan & volgende* en door. De Hik-Connect-verificatiecode gaat versleuteld in de geheime notitie.
 - **Inkoopfacturen**: per apparaat zie je op welke inkoopfactuur het is geleverd en wanneer het verkocht is (apparaten uit een geaccepteerde offerte krijgen automatisch de verkoopdatum).
@@ -84,6 +85,10 @@ Op hosting zonder `php spark` doe je het onderhoud in **Beheer › Onderhoud**:
 1. **Versleutelingssleutel**: kopieer de regel naar `.env`.
 2. **Database bijwerken** na elke update: één knop voert alle openstaande migraties uit.
 3. **Geplande taken**: per taak een link met een geheime sleutel. Zet die in Plesk › Geplande taken als *URL ophalen*.
+
+### E-mail
+
+Bij *Beheer › E-mail* kies je hoe klantbeheer mailt: de mailserver van de webhost, een SMTP-server of **Office 365 via Microsoft Graph** (app-registratie met het recht `Mail.Send`; de stappen staan op de pagina). Met de testknop zie je meteen of het werkt.
 
 ### UniFi en UISP (optioneel)
 

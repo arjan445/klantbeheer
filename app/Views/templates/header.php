@@ -15,7 +15,7 @@
     <script src="<?= base_url('assets/bootstrap/bootstrap.bundle.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.min.js') ?>"></script>
     <script src="<?= base_url('assets/datatables/dataTables.bootstrap5.min.js') ?>"></script>
-    <link href="<?= base_url('scripts/style.css?ver=16') ?>" rel="stylesheet">
+    <link href="<?= base_url('scripts/style.css?ver=17') ?>" rel="stylesheet">
     <meta name="csrf-name" content="<?= csrf_token() ?>">
     <meta name="csrf-hash" content="<?= csrf_hash() ?>">
 </head>
@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <?php endif ?>
                         <?php if (user_can('settings.manage')) : ?>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/moneybird') ?>">Moneybird</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('beheer/mail') ?>">E-mail</a></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/netwerk') ?>">Netwerk (UniFi &amp; UISP)</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="<?= site_url('beheer/onderhoud') ?>"><i class="bi bi-tools"></i> Onderhoud</a></li>

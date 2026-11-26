@@ -4,7 +4,7 @@ use App\Libraries\Network;
 $c         = $customer;
 $siteNames = array_column($sites, 'name', 'id');
 $network ??= null;
-$netSites  = $network['sites'] ?? [];
+$netSites  = Network::topoSites($network['sites'] ?? []);
 ?>
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
     <div>
@@ -16,7 +16,7 @@ $netSites  = $network['sites'] ?? [];
             <a href="<?= site_url('netwerk/topologie/' . $netSites[0]['id']) ?>" class="btn btn-primary"><i class="bi bi-diagram-3"></i> Topologie</a>
         <?php elseif ($netSites !== []) : ?>
             <div class="dropdown"><button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-diagram-3"></i> Topologie</button>
-                <ul class="dropdown-menu"><?php foreach ($netSites as $ns) : ?><li><a class="dropdown-item" href="<?= site_url('netwerk/topologie/' . $ns['id']) ?>"><?= esc(Network::platformLabel($ns['platform']) . ' · ' . $ns['name']) ?></a></li><?php endforeach ?></ul></div>
+                <ul class="dropdown-menu"><?php foreach ($netSites as $ns) : ?><li><a class="dropdown-item" href="<?= site_url('netwerk/topologie/' . $ns['id']) ?>"><?= esc($ns['label'] . ' · ' . $ns['name']) ?></a></li><?php endforeach ?></ul></div>
         <?php endif ?>
         <?php if (user_can('hours.manage')) : ?>
             <a href="<?= site_url('uren/nieuw?klant=' . $c['id']) ?>" class="btn btn-outline-secondary"><i class="bi bi-clock"></i> Uren</a>
@@ -96,11 +96,11 @@ $netSites  = $network['sites'] ?? [];
                     <?php if (! empty($ns['vpn'])) : ?><div class="mt-2"><?= view('network/_vpn', ['site' => $ns]) ?></div><?php endif ?>
                 <?php endforeach ?>
 
-                <?php if (! empty($ln['sites'])) : ?>
+                <?php if (! empty($ln['sites'])) : $topo = Network::topoSites($ln['sites']); ?>
                 <div class="d-flex flex-wrap gap-2 mt-3">
-                    <?php foreach ($ln['sites'] as $ns) : ?>
+                    <?php foreach ($topo as $ns) : ?>
                         <div class="btn-group btn-group-sm">
-                            <a href="<?= site_url('netwerk/topologie/' . $ns['id']) ?>" class="btn btn-primary"><i class="bi bi-diagram-3"></i> <?= count($ln['sites']) > 1 ? esc(Network::platformLabel($ns['platform']) . ' · ' . $ns['name']) : 'Topologie' ?></a>
+                            <a href="<?= site_url('netwerk/topologie/' . $ns['id']) ?>" class="btn btn-primary"><i class="bi bi-diagram-3"></i> <?= count($topo) > 1 ? esc($ns['label'] . ' · ' . $ns['name']) : 'Topologie' . ($ns['combined'] ? ' <span class="opacity-75 small">' . esc($ns['label']) . '</span>' : '') ?></a>
                             <a href="<?= site_url('netwerk/topologie/' . $ns['id'] . '/pdf') ?>" target="_blank" class="btn btn-outline-primary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
                         </div>
                     <?php endforeach ?>

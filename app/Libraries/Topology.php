@@ -260,11 +260,63 @@ class Topology
      *
      * @return array<int,true>
      */
+    /** @var array<int,?int>|null network_sites.id => merged_into */
+    private static ?array $merged = null;
+
+    public static function resetGroups(): void
+    {
+        self::$merged = null;
+    }
+
+    private static function mergedMap(): array
+    {
+        if (self::$merged === null) {
+            self::$merged = [];
+            try {
+                foreach (model(NetworkSiteModel::class)->select('id, merged_into')->findAll() as $r) {
+                    self::$merged[(int) $r['id']] = $r['merged_into'] ? (int) $r['merged_into'] : null;
+                }
+            } catch (\Throwable $e) {
+                // kolom nog niet aangemaakt (migratie): alles los
+                foreach (model(NetworkSiteModel::class)->select('id')->findAll() as $r) {
+                    self::$merged[(int) $r['id']] = null;
+                }
+            }
+        }
+
+        return self::$merged;
+    }
+
+    /** Hoofdsite van een gecombineerde installatie (of de site zelf) */
+    public static function primary(int $networkSiteId): int
+    {
+        return self::mergedMap()[$networkSiteId] ?? $networkSiteId;
+    }
+
+    /**
+     * Alle sites van de installatie: hoofdsite + wat erbij is gevoegd.
+     *
+     * @return list<int>
+     */
+    public static function group(int $networkSiteId): array
+    {
+        $main = self::primary($networkSiteId);
+        $out  = [$main];
+        foreach (self::mergedMap() as $id => $into) {
+            if ($into === $main) {
+                $out[] = $id;
+            }
+        }
+
+        return $out;
+    }
+
     private static function members(int $networkSiteId, array $devices, array $links): array
     {
-        $in = [];
+        $set = array_flip(self::group($networkSiteId));
+        $in  = [];
         foreach ($devices as $id => $d) {
-            if ((int) $d['network_site_id'] === $networkSiteId || (int) ($links[$id]['view_site_id'] ?? 0) === $networkSiteId) {
+            if (isset($set[(int) $d['network_site_id']]) || isset($set[(int) ($links[$id]['view_site_id'] ?? 0)])) {
                 $in[(int) $id] = true;
             }
         }
@@ -309,6 +361,8 @@ class Topology
      */
     public static function nodes(int $networkSiteId): array
     {
+        $networkSiteId = self::primary($networkSiteId);
+        $set           = array_flip(self::group($networkSiteId));
         ['devices' => $devices, 'links' => $links] = self::graph();
         $in  = self::members($networkSiteId, $devices, $links);
         $out = [];
@@ -344,7 +398,7 @@ class Topology
                     'port'        => $l['auto_parent_port'],
                     'type'        => $l['auto_link_type'],
                 ] : null,
-                'foreign'     => (int) ($d['network_site_id'] ?? 0) !== $networkSiteId, // uit een andere site/platform
+                'foreign'     => ! isset($set[(int) ($d['network_site_id'] ?? 0)]), // uit een site buiten deze installatie
                 'kind'        => in_array($d['platform'], ['manual', 'vault'], true) ? $d['platform'] : 'network',
             ];
         }

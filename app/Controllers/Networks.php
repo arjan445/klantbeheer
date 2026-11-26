@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Libraries\Network;
+use App\Libraries\Topology;
 use App\Libraries\Network\Uisp;
 use App\Libraries\Network\Unifi;
 use App\Models\CustomerModel;
@@ -117,6 +118,12 @@ class Networks extends BaseController
         }
         $ignored = $this->request->getPost('ignored') ? 1 : 0;
         model(NetworkSiteModel::class)->update($site['id'], ['site_id' => $locId, 'ignored' => $ignored]);
+        // Gecombineerde installatie: deelsites op dezelfde (of geen) locatie verhuizen mee
+        $kids = db_connect()->table('network_sites')->where('merged_into', $site['id'])->groupStart()->where('site_id', null);
+        if ($site['site_id']) {
+            $kids->orWhere('site_id', $site['site_id']);
+        }
+        $kids->groupEnd()->update(['site_id' => $locId]);
 
         // Apparaten die al in de kluis staan zonder locatie: locatie overnemen als de klant klopt
         if ($locId !== null) {
@@ -129,6 +136,39 @@ class Networks extends BaseController
         $label = $ignored ? 'genegeerd' : ($locId ? 'gekoppeld' : 'ontkoppeld');
 
         return $this->back('"' . $site['name'] . '" ' . $label . '.', 'message', site_url('netwerk?tab=sites'));
+    }
+
+    /**
+     * Gecombineerde installatie: deze site bij een andere voegen (één topologie),
+     * of weer losmaken. Heeft de site zelf nog geen locatie, dan neemt hij die van
+     * de hoofdsite over.
+     */
+    public function combine($id)
+    {
+        $site = $this->findOr404(NetworkSiteModel::class, $id);
+        $into = (int) $this->request->getPost('into') ?: null;
+        $back = site_url('netwerk?tab=sites');
+
+        if ($into === null) {
+            model(NetworkSiteModel::class)->update($site['id'], ['merged_into' => null]);
+
+            return $this->back('"' . $site['name'] . '" is weer een losse installatie.', 'message', $back);
+        }
+        $target = model(NetworkSiteModel::class)->find($into);
+        if ($target === null || (int) $target['id'] === (int) $site['id'] || ! empty($target['merged_into'])) {
+            return $this->back('Met die site kun je niet combineren.', 'error', $back);
+        }
+        if (model(NetworkSiteModel::class)->where('merged_into', $site['id'])->countAllResults() > 0) {
+            return $this->back('Bij "' . $site['name'] . '" zijn al sites gevoegd. Voeg de andere site bij deze, of maak ze eerst los.', 'error', $back);
+        }
+        $set = ['merged_into' => (int) $target['id']];
+        if (! $site['site_id'] && $target['site_id']) {
+            $set['site_id'] = $target['site_id'];
+        }
+        model(NetworkSiteModel::class)->update($site['id'], $set);
+        Topology::resetGroups();
+
+        return $this->back('"' . $site['name'] . '" en "' . $target['name'] . '" zijn nu één installatie (' . Network::groupLabel([$site, $target]) . ').', 'message', $back);
     }
 
     /**
