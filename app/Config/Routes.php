@@ -143,6 +143,7 @@ $routes->group('netwerk', ['filter' => 'can:vault.view'], static function ($rout
     $routes->get('/', [Networks::class, 'index']);
     $routes->post('synchroniseren', [Networks::class, 'sync'], ['filter' => 'can:vault.manage']);
     $routes->post('site/(:num)', [Networks::class, 'linkSite/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('site/(:num)/combineren', [Networks::class, 'combine/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('koppelen', [Networks::class, 'assign'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/bewaken', [Networks::class, 'monitor/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/ontkoppelen', [Networks::class, 'unlink/$1'], ['filter' => 'can:vault.manage']);
@@ -211,6 +212,8 @@ $routes->group('beheer', static function ($routes) {
     $routes->match(['GET', 'POST'], 'netwerk', [Networks::class, 'settings'], ['filter' => 'can:settings.manage']);
     $routes->get('netwerk/melding-voorbeeld', [Networks::class, 'alertPreview'], ['filter' => 'can:settings.manage']);
     $routes->post('netwerk/melding-test', [Networks::class, 'alertTest'], ['filter' => 'can:settings.manage']);
+    $routes->match(['GET', 'POST'], 'mail', [\App\Controllers\MailSettings::class, 'index'], ['filter' => 'can:settings.manage']);
+    $routes->post('mail/test', [\App\Controllers\MailSettings::class, 'test'], ['filter' => 'can:settings.manage']);
     $routes->get('onderhoud', [Maintenance::class, 'index'], ['filter' => 'can:settings.manage']);
     $routes->post('onderhoud/migreren', [Maintenance::class, 'migrate'], ['filter' => 'can:settings.manage']);
     $routes->post('onderhoud/cron-sleutel', [Maintenance::class, 'newToken'], ['filter' => 'can:settings.manage']);

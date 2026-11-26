@@ -26,7 +26,9 @@ class TopologyPdf
         $logo = SimplePdf::pngToJpeg(FCPATH . 'img/logo.png');
         $hl   = array_flip($highlight);
 
-        foreach (array_values($siteIds) as $i => $siteId) {
+        // Gecombineerde installatie: één pagina voor de hele installatie
+        $siteIds = array_values(array_unique(array_map(static fn ($id) => Topology::primary((int) $id), $siteIds)));
+        foreach ($siteIds as $i => $siteId) {
             if ($i > 0) {
                 $pdf->addPage();
             }

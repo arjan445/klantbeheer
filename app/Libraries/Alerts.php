@@ -297,7 +297,7 @@ class Alerts
     {
         $offline = array_flip(array_map('intval', array_column($devices, 'id')));
         $info    = [];
-        foreach (array_unique(array_filter(array_map(static fn ($d) => (int) $d['network_site_id'], $devices))) as $siteId) {
+        foreach (array_unique(array_filter(array_map(static fn ($d) => Topology::primary((int) $d['network_site_id']), $devices))) as $siteId) {
             ['order' => $order, 'byId' => $byId] = Topology::tree(Topology::nodes($siteId));
             foreach ($order as $i => ['node' => $n, 'depth' => $depth]) {
                 // Hoogste offline voorouder
@@ -359,33 +359,28 @@ class Alerts
     public static function send(array $customer, array $devices, array $to, array $s, array $opt = []): void
     {
         $mail  = self::build($customer, $devices, $s, false, $opt);
-        $email = service('email');
-        $email->clear(true);
-        $email->setTo($to);
-        if ($s['replyTo'] !== '' && filter_var($s['replyTo'], FILTER_VALIDATE_EMAIL)) {
-            $email->setReplyTo($s['replyTo']);
-        }
-        $email->setSubject(($opt['test'] ?? false ? '[TEST] ' : '') . $mail['subject']);
-        $email->setMailType('html');
+        $files = [];
+        $html  = $mail['html'];
 
         // Logo in de mail zelf (niet als link, wordt dan niet geblokkeerd)
         $logo = FCPATH . 'img/logo.png';
-        $html = $mail['html'];
         if (is_file($logo)) {
-            $email->attach($logo, 'inline');
-            $html = str_replace('cid:__LOGO__', 'cid:' . $email->setAttachmentCID($logo), $html);
+            $files[] = ['name' => 'logo.png', 'content' => (string) file_get_contents($logo), 'type' => 'image/png', 'inline' => true, 'cid' => 'logo@bongersonline'];
+            $html    = str_replace('cid:__LOGO__', 'cid:logo@bongersonline', $html);
         }
-        $email->setMessage($html);
-        $email->setAltMessage(self::plain($customer, $devices));
-
         if ($s['pdf'] && $mail['sites'] !== []) {
-            $pdf = TopologyPdf::render($mail['sites'], array_map('intval', array_column($devices, 'id')));
-            $email->attach($pdf, 'attachment', 'Netwerkoverzicht ' . preg_replace('/[^\w\- ]+/u', '', $customer['name']) . '.pdf', 'application/pdf');
+            $files[] = [
+                'name'    => 'Netwerkoverzicht ' . preg_replace('/[^\w\- ]+/u', '', $customer['name']) . '.pdf',
+                'content' => TopologyPdf::render($mail['sites'], array_map('intval', array_column($devices, 'id'))),
+                'type'    => 'application/pdf',
+            ];
         }
 
-        if (! $email->send(false)) {
-            throw new \RuntimeException(trim(strip_tags($email->printDebugger(['headers']))) ?: 'onbekende fout');
-        }
+        Mailer::send($to, ($opt['test'] ?? false ? '[TEST] ' : '') . $mail['subject'], $html, [
+            'text'        => self::plain($customer, $devices),
+            'replyTo'     => $s['replyTo'],
+            'attachments' => $files,
+        ]);
     }
 
     private static function plain(array $customer, array $devices): string

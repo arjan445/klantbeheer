@@ -49,14 +49,42 @@ $locSelect = static function (string $name, ?int $current, array $locations, ?in
     <?php if ($sites === []) : ?>
         <div class="card"><div class="card-body text-muted">Nog geen sites. Klik op <strong>Nu ophalen</strong>.</div></div>
     <?php endif ?>
+    <?php
+    // Gecombineerde installaties (UniFi + UISP): wat hoort bij wat
+    $byId     = array_column($sites, null, 'id');
+    $children = [];
+    foreach ($sites as $x) {
+        if (! empty($x['merged_into']) && isset($byId[(int) $x['merged_into']])) {
+            $children[(int) $x['merged_into']][] = $x;
+        }
+    }
+    // Waar je mee kunt combineren: zelfstandige sites, die van dezelfde klant eerst
+    $targets = static function (array $s) use ($sites, $children) {
+        $same = $other = [];
+        foreach ($sites as $t) {
+            if ((int) $t['id'] === (int) $s['id'] || ! empty($t['merged_into']) || $t['ignored'] || str_starts_with((string) $t['external_id'], 'host:')) {
+                continue;
+            }
+            if ($s['customer_id'] && (int) $t['customer_id'] === (int) $s['customer_id']) {
+                $same[] = $t;
+            } else {
+                $other[] = $t;
+            }
+        }
+
+        return [$same, $other];
+    };
+    ?>
     <div class="net-list">
-    <?php foreach ($sites as $s) : ?>
+    <?php foreach ($sites as $s) : $merged = ! empty($s['merged_into']) && isset($byId[(int) $s['merged_into']]) ? $byId[(int) $s['merged_into']] : null; $kids = $children[(int) $s['id']] ?? []; ?>
         <div class="net-item <?= $s['ignored'] ? 'opacity-50' : '' ?>">
             <div class="d-flex justify-content-between align-items-start gap-2">
                 <div class="min-w-0">
                     <div class="fw-semibold text-truncate"><?= $platformBadge($s['platform']) ?> <?= esc($s['name']) ?></div>
                     <div class="small text-muted text-truncate"><?= esc(implode(' · ', array_filter([$s['fabric'] ?? null ? 'fabric ' . $s['fabric'] : null, $s['host_name'] && $s['host_name'] !== $s['name'] ? 'console ' . $s['host_name'] : null, $s['platform'] === 'uisp' ? $s['description'] : null]))) ?></div>
                     <?php if (! empty($s['vpn'])) : ?><div class="mt-1"><?= view('network/_vpn', ['site' => $s]) ?></div><?php endif ?>
+                    <?php if ($merged) : ?><div class="small mt-1 text-primary"><i class="bi bi-diagram-2"></i> Onderdeel van <strong><?= esc($merged['name']) ?></strong> (<?= esc(\App\Libraries\Network::platformLabel($merged['platform'])) ?>)</div><?php endif ?>
+                    <?php if ($kids) : ?><div class="small mt-1 text-primary"><i class="bi bi-diagram-2"></i> Gecombineerd met <?= esc(implode(', ', array_map(static fn ($k) => \App\Libraries\Network::platformLabel($k['platform']) . ' ' . $k['name'], $kids))) ?></div><?php endif ?>
                 </div>
                 <div class="text-end small text-nowrap">
                     <a href="<?= site_url('netwerk/topologie/' . $s['id']) ?>" class="btn btn-sm btn-outline-secondary mb-1"><i class="bi bi-diagram-3"></i> Topologie</a><br>
@@ -73,6 +101,23 @@ $locSelect = static function (string $name, ?int $current, array $locations, ?in
                 </label>
                 <button class="btn btn-primary text-nowrap">Opslaan</button>
             </form>
+            <?php if (! str_starts_with((string) $s['external_id'], 'host:')) : ?>
+            <form method="post" action="<?= site_url('netwerk/site/' . $s['id'] . '/combineren') ?>" class="d-flex gap-2 mt-2 align-items-center net-combine">
+                <?= csrf_field() ?>
+                <?php if ($merged) : ?>
+                    <span class="small text-muted flex-grow-1">Gecombineerde installatie: één topologie met <?= esc($merged['name']) ?>.</span>
+                    <input type="hidden" name="into" value="">
+                    <button class="btn btn-sm btn-outline-secondary text-nowrap">Losmaken</button>
+                <?php elseif ($kids === []) : [$same, $other] = $targets($s); ?>
+                    <select name="into" class="form-select form-select-sm" aria-label="Installatie" onchange="this.form.querySelector('button').classList.toggle('d-none', this.value === '')">
+                        <option value="">Losse <?= esc(\App\Libraries\Network::platformLabel($s['platform'])) ?>-installatie</option>
+                        <?php if ($same) : ?><optgroup label="Combineren met (zelfde klant)"><?php foreach ($same as $t) : ?><option value="<?= (int) $t['id'] ?>"><?= esc(\App\Libraries\Network::platformLabel($t['platform']) . ' · ' . $t['name']) ?></option><?php endforeach ?></optgroup><?php endif ?>
+                        <?php if ($other) : ?><optgroup label="Combineren met"><?php foreach ($other as $t) : ?><option value="<?= (int) $t['id'] ?>"><?= esc(\App\Libraries\Network::platformLabel($t['platform']) . ' · ' . $t['name']) ?></option><?php endforeach ?></optgroup><?php endif ?>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary text-nowrap d-none">Combineren</button>
+                <?php endif ?>
+            </form>
+            <?php endif ?>
             <?php elseif ($s['site_id']) : ?>
                 <div class="small mt-1"><i class="bi bi-link-45deg"></i> <?= esc($s['customer_name'] . ' · ' . $s['loc_name']) ?></div>
             <?php endif ?>

@@ -273,3 +273,10 @@ body:has(.scan-bar:not(.d-none)) { padding-bottom: 90px; }
 /* Klantpagina: locaties & netwerk */
 .loc-card.loc-down { border-color: #f1aeb5; box-shadow: inset 3px 0 0 #dc3545; }
 .loc-notes { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Beheer › E-mail */
+.mail-choice { display: grid; gap: .5rem; }
+.mail-opt { display: flex; gap: .6rem; align-items: flex-start; border: 1px solid #dee2e6; border-radius: .5rem; padding: .6rem .75rem; cursor: pointer; }
+.mail-opt:has(input:checked) { border-color: #0b1150; background: #f3f4fb; }
+.mail-opt input { margin-top: .25rem; flex: none; }
+.net-combine .form-select { max-width: 340px; }

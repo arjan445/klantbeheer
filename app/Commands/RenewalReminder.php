@@ -55,14 +55,10 @@ class RenewalReminder extends BaseCommand
             return EXIT_ERROR;
         }
 
-        $email = service('email');
-        $email->setTo($recipients);
-        $email->setSubject(count($due) . ' abonnement(en) te factureren');
-        $email->setMessage($body);
-        $email->setMailType('html');
-
-        if (! $email->send(false)) {
-            CLI::error('Versturen mislukt: ' . strip_tags($email->printDebugger(['headers'])));
+        try {
+            \App\Libraries\Mailer::send($recipients, count($due) . ' abonnement(en) te factureren', $body);
+        } catch (\Throwable $e) {
+            CLI::error('Versturen mislukt: ' . $e->getMessage());
 
             return EXIT_ERROR;
         }

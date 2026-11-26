@@ -223,7 +223,7 @@ class CustomerMap
                 'offline'  => array_map(static fn ($d) => ['name' => $d['name'], 'since' => $d['since'] ? Network::ago($d['since']) : null], array_slice($off, 0, 8)),
                 'offCount' => count($off),
                 'vpn'      => $vpnBad,
-                'topo'     => array_map(static fn ($n) => ['id' => (int) $n['id'], 'name' => Network::platformLabel($n['platform']) . ' · ' . $n['name']], $ns),
+                'topo'     => array_map(static fn ($t) => ['id' => $t['id'], 'name' => $t['label'] . ' · ' . $t['name']], Network::topoSites($ns)),
             ];
         };
 
