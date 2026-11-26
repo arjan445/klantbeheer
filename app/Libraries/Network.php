@@ -141,6 +141,66 @@ class Network
         return $out;
     }
 
+    /**
+     * Netwerk per klant (en per locatie): gekoppelde UniFi/UISP-sites (voor de
+     * topologie) en hoeveel bewaakte apparaten er zijn en offline staan.
+     *
+     * @return array<int,array{sites:list<array>, total:int, offline:int, locs:array<int,array{sites:list<array>, total:int, offline:int, down:list<array>}>}>
+     */
+    public static function byCustomer(?int $customerId = null): array
+    {
+        $out  = [];
+        $init = static fn () => ['sites' => [], 'total' => 0, 'offline' => 0, 'locs' => []];
+        $loc  = static fn () => ['sites' => [], 'total' => 0, 'offline' => 0, 'down' => []];
+
+        try {
+            $q = model(NetworkSiteModel::class)->select('network_sites.id, network_sites.name, network_sites.platform, network_sites.site_id, network_sites.vpn, network_sites.device_count, network_sites.offline_count, sites.customer_id')
+                ->join('sites', 'sites.id = network_sites.site_id')->where('network_sites.ignored', 0)->orderBy('network_sites.platform')->orderBy('network_sites.name');
+            if ($customerId !== null) {
+                $q->where('sites.customer_id', $customerId);
+            }
+            foreach ($q->findAll() as $n) {
+                $cid = (int) $n['customer_id'];
+                $out[$cid] ??= $init();
+                $out[$cid]['sites'][] = $n;
+                $out[$cid]['locs'][(int) $n['site_id']] ??= $loc();
+                $out[$cid]['locs'][(int) $n['site_id']]['sites'][] = $n;
+            }
+
+            $q = model(NetworkDeviceModel::class)->withContext()
+                ->whereIn('network_devices.platform', self::MONITORED)
+                ->where('network_devices.monitor', 1)->where('network_devices.ignored', 0)->where('network_devices.gone', 0)
+                ->groupStart()->where('network_sites.ignored', 0)->orWhere('network_sites.id IS NULL', null, false)->groupEnd();
+            if ($customerId !== null) {
+                $q->groupStart()->where('devices.customer_id', $customerId)->orGroupStart()->where('devices.customer_id IS NULL', null, false)->where('sites.customer_id', $customerId)->groupEnd()->groupEnd();
+            }
+            foreach ($q->findAll() as $d) {
+                if (! $d['cust_id']) {
+                    continue;
+                }
+                $cid = (int) $d['cust_id'];
+                $lid = (int) ($d['loc_id'] ?? 0);
+                $out[$cid] ??= $init();
+                $out[$cid]['locs'][$lid] ??= $loc();
+                $off = $d['status'] === 'offline';
+                $out[$cid]['total']++;
+                $out[$cid]['locs'][$lid]['total']++;
+                if ($off) {
+                    $out[$cid]['offline']++;
+                    $out[$cid]['locs'][$lid]['offline']++;
+                    $out[$cid]['locs'][$lid]['down'][] = [
+                        'name'  => $d['device_name'] ?: ($d['name'] ?: ($d['model'] ?: self::formatMac($d['mac']))),
+                        'since' => $d['offline_since'],
+                    ];
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Netwerk per klant: ' . $e->getMessage());
+        }
+
+        return $out;
+    }
+
     /** Kleur en tekst voor de status van een SD-WAN-verband */
     public static function vpnState(string $state): array
     {
