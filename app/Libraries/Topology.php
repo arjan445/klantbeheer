@@ -236,37 +236,51 @@ class Topology
     // Tekenen
 
     /**
-     * In welke topologie (netwerksite) staat elk apparaat?
-     * Met bovenliggend apparaat: in die van het bovenliggende apparaat.
+     * Alle apparaten en verbindingen.
      *
-     * @return array{views: array<int,int|null>, devices: array<int,array>, links: array<int,array>}
+     * @return array{devices: array<int,array>, links: array<int,array>}
      */
     private static function graph(): array
     {
-        $devices = array_column(model(NetworkDeviceModel::class)->withContext()->where('network_devices.gone', 0)->findAll(), null, 'id');
-        $links   = array_column(model(NetworkLinkModel::class)->findAll(), null, 'network_device_id');
+        return [
+            'devices' => array_column(model(NetworkDeviceModel::class)->withContext()->where('network_devices.gone', 0)->findAll(), null, 'id'),
+            'links'   => array_column(model(NetworkLinkModel::class)->findAll(), null, 'network_device_id'),
+        ];
+    }
 
-        $views = [];
-        $view  = static function (int $id, array $path = []) use (&$view, &$views, $devices, $links) {
-            if (array_key_exists($id, $views)) {
-                return $views[$id];
+    /**
+     * Welke apparaten staan in de topologie van deze netwerksite?
+     *
+     *  - altijd alle apparaten van de site zelf (er verdwijnt dus nooit iets);
+     *  - apparaten die je er zelf aan hebt toegevoegd;
+     *  - en de apparaten uit andere sites waar ze via lopen (bijv. de UISP-
+     *    straalverbinding tussen twee gebouwen), zodat de lijn klopt.
+     *
+     * Een apparaat kan zo in meer topologieën staan; het blijft hetzelfde apparaat.
+     *
+     * @return array<int,true>
+     */
+    private static function members(int $networkSiteId, array $devices, array $links): array
+    {
+        $in = [];
+        foreach ($devices as $id => $d) {
+            if ((int) $d['network_site_id'] === $networkSiteId || (int) ($links[$id]['view_site_id'] ?? 0) === $networkSiteId) {
+                $in[(int) $id] = true;
             }
-            $l = $links[$id] ?? null;
-            $p = $l['parent_id'] ?? null;
-            if ($p !== null && isset($devices[(int) $p]) && ! isset($path[(int) $p])) {
-                $path[$id] = true;
-
-                return $views[$id] = $view((int) $p, $path);
+        }
+        // Bovenliggende apparaten erbij (via via), ook uit andere sites
+        foreach (array_keys($in) as $id) {
+            for ($p = $links[$id]['parent_id'] ?? null, $i = 0; $p !== null && $i < 100; $i++) {
+                $p = (int) $p;
+                if (! isset($devices[$p]) || isset($in[$p])) {
+                    break;
+                }
+                $in[$p] = true;
+                $p = $links[$p]['parent_id'] ?? null;
             }
-
-            return $views[$id] = ($l['view_site_id'] ?? null) !== null ? (int) $l['view_site_id']
-                : ($devices[$id]['network_site_id'] ? (int) $devices[$id]['network_site_id'] : null);
-        };
-        foreach (array_keys($devices) as $id) {
-            $view((int) $id);
         }
 
-        return ['views' => $views, 'devices' => $devices, 'links' => $links];
+        return $in;
     }
 
     /** Komt een apparaat via zijn ouders weer bij zichzelf uit? */
@@ -295,15 +309,13 @@ class Topology
      */
     public static function nodes(int $networkSiteId): array
     {
-        ['views' => $views, 'devices' => $devices, 'links' => $links] = self::graph();
+        ['devices' => $devices, 'links' => $links] = self::graph();
+        $in  = self::members($networkSiteId, $devices, $links);
         $out = [];
-        foreach ($views as $id => $v) {
-            if ($v !== $networkSiteId) {
-                continue;
-            }
+        foreach (array_keys($in) as $id) {
             $d = $devices[$id];
             $l = $links[$id] ?? null;
-            $p = $l && $l['parent_id'] && ($views[(int) $l['parent_id']] ?? null) === $networkSiteId ? (int) $l['parent_id'] : null;
+            $p = $l && $l['parent_id'] && isset($in[(int) $l['parent_id']]) ? (int) $l['parent_id'] : null;
             if ($p !== null && self::inCycle((int) $id, $links)) {
                 $p = null; // rondje: dit apparaat bovenaan tekenen, zodat niets verdwijnt
             }
@@ -348,10 +360,11 @@ class Topology
      */
     public static function addable(int $networkSiteId): array
     {
-        ['views' => $views, 'devices' => $devices] = self::graph();
+        ['devices' => $devices, 'links' => $links] = self::graph();
+        $in  = self::members($networkSiteId, $devices, $links);
         $out = [];
         foreach ($devices as $id => $d) {
-            if (($views[$id] ?? null) === $networkSiteId) {
+            if (isset($in[(int) $id])) {
                 continue;
             }
             $group = Network::platformLabel($d['platform']) . ' · ' . ($d['nsite_name'] ?? 'zonder site');
@@ -409,10 +422,10 @@ class Topology
         ]);
     }
 
-    /** Apparaat uit een andere site in deze topologie zetten (bovenaan, vast) */
+    /** Apparaat uit een andere site ook in deze topologie tonen (zijn eigen verbinding blijft) */
     public static function addToView(int $childId, int $viewSiteId): void
     {
-        self::upsert($childId, ['parent_id' => null, 'parent_port' => null, 'local_port' => null, 'locked' => 1, 'view_site_id' => $viewSiteId]);
+        self::upsert($childId, ['view_site_id' => $viewSiteId]);
     }
 
     /** Soorten voor zelf toegevoegde apparaten */
@@ -550,7 +563,7 @@ class Topology
         if ($nd === null || ! in_array($nd['platform'], ['manual', 'vault'], true)) {
             throw new RuntimeException('Alleen zelf toegevoegde apparaten en apparaten uit de kluis kun je hier verwijderen.');
         }
-        $view = self::graph()['views'][$id] ?? $nd['network_site_id'];
+        $view = $nd['network_site_id'];
         foreach (model(NetworkLinkModel::class)->where('parent_id', $id)->findAll() as $child) {
             model(NetworkLinkModel::class)->update($child['id'], ['parent_id' => null, 'parent_port' => null, 'locked' => 1, 'view_site_id' => $view]);
         }
