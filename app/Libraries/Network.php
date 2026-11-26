@@ -125,8 +125,14 @@ class Network
             }
             $r = ['platform' => $c->platform(), 'label' => $c->label(), 'ok' => false, 'error' => null, 'sites' => 0, 'devices' => 0, 'online' => 0, 'offline' => 0, 'linked' => 0, 'notes' => []];
             try {
-                $data = $c->fetch();
-                $r    = array_merge($r, self::store($c->platform(), $data), ['ok' => true, 'notes' => $data['notes'] ?? []]);
+                $data   = $c->fetch();
+                $stored = self::store($c->platform(), $data);
+                $notes  = $data['notes'] ?? [];
+                if ($stored['errors'] !== []) {
+                    $notes[] = 'Niet alles opgeslagen (' . ($stored['devices'] - $stored['saved']) . ' apparaten): ' . implode(' · ', $stored['errors']);
+                }
+                unset($stored['errors']);
+                $r = array_merge($r, $stored, ['ok' => true, 'notes' => $notes]);
             } catch (Throwable $e) {
                 $r['error'] = $e->getMessage();
                 log_message('error', 'Netwerk ' . $c->label() . ': ' . $e->getMessage());
@@ -156,55 +162,88 @@ class Network
     /**
      * Slaat sites en apparaten van één platform op.
      *
-     * @return array{sites:int, devices:int, online:int, offline:int}
+     * Bewust zonder één grote transactie: daarin draait CodeIgniter bij één
+     * mislukte regel stilletjes alles terug. Nu wordt elke regel apart opgeslagen;
+     * wat niet lukt, komt in 'errors' (en in het log), de rest staat er gewoon.
+     *
+     * @return array{sites:int, devices:int, online:int, offline:int, saved:int, errors:list<string>}
      */
     private static function store(string $platform, array $data): array
     {
-        $now     = date('Y-m-d H:i:s');
-        $db      = db_connect();
-        $sitesM  = model(NetworkSiteModel::class);
-        $devM    = model(NetworkDeviceModel::class);
+        $now    = date('Y-m-d H:i:s');
+        $db     = db_connect();
+        $sitesM = model(NetworkSiteModel::class);
+        $devM   = model(NetworkDeviceModel::class);
+        $errors = [];
+        $key    = static fn ($v) => mb_strtolower(trim((string) $v)); // MySQL vergelijkt zonder hoofdletters
 
-        $db->transStart();
+        $write = static function (callable $fn, string $what) use ($db, &$errors) {
+            try {
+                $r = $fn();
+                if ($r === false) {
+                    $e = $db->error();
+                    throw new RuntimeException(($e['message'] ?? '') !== '' ? $e['message'] : 'onbekende databasefout');
+                }
+
+                return $r;
+            } catch (Throwable $e) {
+                $msg = $what . ': ' . $e->getMessage();
+                log_message('error', 'Netwerk opslaan: ' . $msg);
+                if (count($errors) < 5) {
+                    $errors[] = $msg;
+                }
+
+                return false;
+            }
+        };
 
         // Sites
         $existing = [];
         foreach ($sitesM->where('platform', $platform)->findAll() as $s) {
-            $existing[$s['external_id']] = $s;
+            $existing[$key($s['external_id'])] = $s;
         }
-        $siteIds = [];
+        $siteIds = []; // sleutel (kleine letters) => id
         foreach ($data['sites'] as $s) {
+            $ext = mb_substr(trim((string) $s['external_id']), 0, 100);
+            if ($ext === '' || isset($siteIds[$key($ext)])) {
+                continue; // leeg of dubbel
+            }
             $row = [
                 'platform'       => $platform,
-                'external_id'    => mb_substr($s['external_id'], 0, 100),
-                'name'           => mb_substr($s['name'], 0, 150),
-                'description'    => $s['description'],
-                'host_id'        => $s['host_id'],
-                'host_name'      => $s['host_name'],
+                'external_id'    => $ext,
+                'name'           => mb_substr((string) ($s['name'] ?: 'Site'), 0, 150),
+                'description'    => $s['description'] !== null ? mb_substr($s['description'], 0, 255) : null,
+                'host_id'        => $s['host_id'] !== null ? mb_substr($s['host_id'], 0, 150) : null,
+                'host_name'      => $s['host_name'] !== null ? mb_substr($s['host_name'], 0, 150) : null,
                 'last_synced_at' => $now,
             ];
-            if (isset($existing[$row['external_id']])) {
-                $sitesM->update($existing[$row['external_id']]['id'], $row);
-                $siteIds[$row['external_id']] = (int) $existing[$row['external_id']]['id'];
+            if (isset($existing[$key($ext)])) {
+                $id = (int) $existing[$key($ext)]['id'];
+                $write(static fn () => $sitesM->update($id, $row), 'site ' . $row['name']);
+                $siteIds[$key($ext)] = $id;
             } else {
-                $siteIds[$row['external_id']] = (int) $sitesM->insert($row);
+                $id = $write(static fn () => $sitesM->insert($row), 'site ' . $row['name']);
+                if ($id) {
+                    $siteIds[$key($ext)] = (int) $id;
+                }
             }
         }
 
         // Apparaten
         $existing = [];
         foreach ($devM->where('platform', $platform)->findAll() as $d) {
-            $existing[$d['external_id']] = $d;
+            $existing[$key($d['external_id'])] = $d;
         }
         $counts = ['online' => 0, 'offline' => 0];
         $seen   = [];
+        $saved  = 0;
         foreach ($data['devices'] as $d) {
-            $ext  = mb_substr($d['external_id'], 0, 150);
-            if (isset($seen[$ext])) {
+            $ext = mb_substr(trim((string) $d['external_id']), 0, 150);
+            if ($ext === '' || isset($seen[$key($ext)])) {
                 continue;
             }
-            $seen[$ext] = true;
-            $prev = $existing[$ext] ?? null;
+            $seen[$key($ext)] = true;
+            $prev = $existing[$key($ext)] ?? null;
 
             $offlineSince = null;
             if ($d['status'] === 'offline') {
@@ -215,58 +254,72 @@ class Network
             if (isset($counts[$d['status']])) {
                 $counts[$d['status']]++;
             }
+            $cut = static fn ($v, int $n) => $v === null || $v === '' ? null : mb_substr((string) $v, 0, $n);
 
             $row = [
                 'platform'        => $platform,
                 'external_id'     => $ext,
-                'network_site_id' => $d['site_external_id'] !== null ? ($siteIds[$d['site_external_id']] ?? null) : null,
-                'name'            => $d['name'],
-                'model'           => $d['model'],
-                'kind'            => $d['kind'],
-                'mac'             => $d['mac'],
-                'serial'          => $d['serial'],
-                'ip'              => $d['ip'] ?? $prev['ip'] ?? null, // offline apparaten geven soms geen IP: laatst bekende houden
-                'firmware'        => $d['firmware'] ?? $prev['firmware'] ?? null,
-                'status'          => $d['status'],
-                'raw_status'      => $d['raw_status'],
+                'network_site_id' => $d['site_external_id'] !== null ? ($siteIds[$key($d['site_external_id'])] ?? null) : null,
+                'name'            => $cut($d['name'], 150),
+                'model'           => $cut($d['model'], 100),
+                'kind'            => $cut($d['kind'], 50),
+                'mac'             => Connector::normalizeMac($d['mac']),
+                'serial'          => $cut($d['serial'], 100),
+                'ip'              => $cut($d['ip'] ?? $prev['ip'] ?? null, 64), // offline geeft soms geen IP: laatst bekende houden
+                'firmware'        => $cut($d['firmware'] ?? $prev['firmware'] ?? null, 100),
+                'status'          => in_array($d['status'], ['online', 'offline'], true) ? $d['status'] : 'unknown',
+                'raw_status'      => $cut($d['raw_status'], 50),
                 'last_seen_at'    => $d['last_seen_at'] ?? $prev['last_seen_at'] ?? null,
                 'offline_since'   => $offlineSince,
                 'synced_at'       => $now,
                 'gone'            => 0,
             ];
-            if ($prev) {
-                $devM->update($prev['id'], $row);
-            } else {
-                $devM->insert($row);
+            $label = 'apparaat ' . ($row['name'] ?? $row['mac'] ?? $ext);
+            $ok    = $prev
+                ? $write(static fn () => $devM->update($prev['id'], $row), $label)
+                : $write(static fn () => $devM->insert($row), $label);
+            if ($ok !== false) {
+                $saved++;
             }
         }
 
-        // Niet meer in het platform (verwijderd of vergeten): niet meer meetellen
-        $goneIds = array_column(array_filter($existing, static fn ($d) => ! isset($seen[$d['external_id']]) && ! $d['gone']), 'id');
-        if ($goneIds !== []) {
-            $db->table('network_devices')->whereIn('id', $goneIds)->update(['gone' => 1, 'status' => 'unknown', 'offline_since' => null, 'updated_at' => $now]);
+        // Niet meer in het platform (verwijderd of vergeten): niet meer meetellen.
+        // Alleen als het ophalen echt iets opleverde, anders zou alles "weg" zijn.
+        if ($seen !== []) {
+            $goneIds = array_column(array_filter($existing, static fn ($d) => ! isset($seen[$key($d['external_id'])]) && ! $d['gone']), 'id');
+            if ($goneIds !== []) {
+                $write(static fn () => $db->table('network_devices')->whereIn('id', $goneIds)
+                    ->update(['gone' => 1, 'status' => 'unknown', 'offline_since' => null, 'updated_at' => $now]), 'verdwenen apparaten');
+            }
         }
 
         // Sites die niet meer bestaan, nergens aan gekoppeld zijn en geen apparaten meer hebben: weg
+        $keep = array_flip(array_values($siteIds));
         foreach ($sitesM->where('platform', $platform)->findAll() as $s) {
-            if (! in_array((int) $s['id'], $siteIds, true) && ! $s['site_id']
+            if (! isset($keep[(int) $s['id']]) && ! $s['site_id']
                 && $devM->where('network_site_id', $s['id'])->where('gone', 0)->countAllResults() === 0) {
-                $db->table('network_devices')->where('network_site_id', $s['id'])->update(['network_site_id' => null]);
-                $sitesM->delete($s['id']);
+                $write(static function () use ($db, $sitesM, $s) {
+                    $db->table('network_devices')->where('network_site_id', $s['id'])->update(['network_site_id' => null]);
+
+                    return $sitesM->delete($s['id']);
+                }, 'oude site ' . $s['name']);
             }
         }
 
         // Tellers per site
         foreach ($sitesM->where('platform', $platform)->findAll() as $s) {
-            $sitesM->update($s['id'], [
+            $set = [
                 'device_count'  => $devM->where('network_site_id', $s['id'])->where('gone', 0)->countAllResults(),
                 'offline_count' => $devM->where('network_site_id', $s['id'])->where('gone', 0)->where('monitor', 1)->where('ignored', 0)->where('status', 'offline')->countAllResults(),
-            ]);
+            ];
+            $write(static fn () => $sitesM->update($s['id'], $set), 'tellers ' . $s['name']);
         }
 
-        $db->transComplete();
+        if ($seen !== [] && $saved === 0) {
+            throw new RuntimeException('Er is niets opgeslagen. ' . ($errors[0] ?? ''));
+        }
 
-        return ['sites' => count($data['sites']), 'devices' => count($seen)] + $counts;
+        return ['sites' => count($siteIds), 'devices' => count($seen), 'saved' => $saved, 'errors' => $errors] + $counts;
     }
 
     /**

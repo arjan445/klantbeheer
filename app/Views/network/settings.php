@@ -12,6 +12,20 @@
             <input name="unifi_apiKey" type="password" class="form-control mono" autocomplete="new-password" placeholder="<?= $unifiSet ? '•••••••• (leeg = ongewijzigd)' : '' ?>">
             <?php if ($unifiSet) : ?><div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="unifi_clear" value="1" id="uc"><label class="form-check-label small" for="uc">Sleutel wissen</label></div><?php endif ?>
             <div class="form-text">Maak de sleutel aan op <strong>unifi.ui.com › API</strong> (Site Manager). Je ziet dan alle consoles en sites van je UI-account, met per apparaat MAC, IP, model, firmware en online status. Bij UniFi is het serienummer gelijk aan het MAC-adres.</div>
+
+            <hr>
+            <div class="fw-semibold small mb-1">Eigen controller <span class="text-muted fw-normal">(zelf gehost, met meerdere sites)</span></div>
+            <div class="form-text mt-0 mb-2">De UniFi-cloud ziet de apparaten van een zelf gehoste controller wel, maar weet niet bij welke site ze horen. Met een lokaal account op die controller worden ze automatisch per site ingedeeld. Maak hiervoor een apart account met alleen-lezen-rechten, zonder tweestapsverificatie.</div>
+            <label class="form-label small mb-1">Adres van de controller</label>
+            <input name="ctrl_url" class="form-control" inputmode="url" value="<?= esc($ctrlUrl, 'attr') ?>" placeholder="https://unifi.jouwdomein.nl:8443">
+            <div class="row g-2 mt-1">
+                <div class="col-6"><label class="form-label small mb-1">Gebruikersnaam</label>
+                    <input name="ctrl_user" class="form-control" autocomplete="off" value="<?= esc($ctrlUser, 'attr') ?>"></div>
+                <div class="col-6"><label class="form-label small mb-1">Wachtwoord <?= $ctrlSet ? '<span class="badge text-bg-success">ingesteld</span>' : '' ?></label>
+                    <input name="ctrl_pass" type="password" class="form-control" autocomplete="new-password" placeholder="<?= $ctrlSet ? '•••••••• (leeg = ongewijzigd)' : '' ?>"></div>
+            </div>
+            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="ctrl_insecure" value="1" id="ci" <?= $ctrlInsecure ? 'checked' : '' ?>><label class="form-check-label small" for="ci">Certificaat niet controleren (alleen als de controller een eigen, niet-officieel certificaat heeft)</label></div>
+            <?php if ($ctrlSet) : ?><div class="form-check"><input class="form-check-input" type="checkbox" name="ctrl_clear" value="1" id="cc"><label class="form-check-label small" for="cc">Wachtwoord wissen</label></div><?php endif ?>
         </div></div>
     </div>
     <div class="col-lg-6">

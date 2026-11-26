@@ -231,9 +231,24 @@ class Networks extends BaseController
             Network::saveSecretIf('unifi.apiKey', $this->request->getPost('unifi_apiKey'), (bool) $this->request->getPost('unifi_clear'));
             Network::saveSecretIf('uisp.token', $this->request->getPost('uisp_token'), (bool) $this->request->getPost('uisp_clear'));
             \App\Libraries\Setting::set('uisp.url', mb_substr(trim((string) $this->request->getPost('uisp_url')), 0, 255));
+            \App\Libraries\Setting::set('unifi.controllerUrl', mb_substr(trim((string) $this->request->getPost('ctrl_url')), 0, 255));
+            \App\Libraries\Setting::set('unifi.controllerUser', mb_substr(trim((string) $this->request->getPost('ctrl_user')), 0, 100));
+            \App\Libraries\Setting::set('unifi.controllerInsecure', $this->request->getPost('ctrl_insecure') ? '1' : '0');
+            Network::saveSecretIf('unifi.controllerPass', $this->request->getPost('ctrl_pass'), (bool) $this->request->getPost('ctrl_clear'));
+            // Indeling per site opnieuw ophalen bij de volgende synchronisatie
+            db_connect()->table('app_settings')->like('key', 'unifi.sitemap.', 'after')->delete();
 
             if ($this->request->getPost('test')) {
                 $out = [];
+                $ctrl = new \App\Libraries\Network\UnifiController();
+                if ($ctrl->configured()) {
+                    try {
+                        $list  = $ctrl->sites();
+                        $out[] = 'Eigen controller: ingelogd, ' . count($list) . ' sites (' . implode(', ', array_slice(array_column($list, 'desc'), 0, 8)) . ').';
+                    } catch (Throwable $e) {
+                        $this->session->setFlashdata('error', $e->getMessage());
+                    }
+                }
                 foreach ([new Unifi(), new Uisp()] as $c) {
                     if (! $c->configured()) {
                         continue;
@@ -256,6 +271,10 @@ class Networks extends BaseController
             'unifiSet' => (new Unifi())->configured(),
             'uispSet'  => Network::secret('uisp.token') !== '',
             'uispUrl'  => Network::setting('uisp.url'),
+            'ctrlUrl'  => Network::setting('unifi.controllerUrl'),
+            'ctrlUser' => Network::setting('unifi.controllerUser'),
+            'ctrlSet'  => Network::secret('unifi.controllerPass') !== '',
+            'ctrlInsecure' => Network::setting('unifi.controllerInsecure') === '1',
             'status'   => Network::status(),
             'secure'   => \App\Libraries\Vault::ready(),
         ], 'Netwerk (UniFi & UISP)');
