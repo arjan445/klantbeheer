@@ -39,6 +39,7 @@ class Alerts
             'nightFrom'  => self::hhmm($s('alerts.nightFrom', '23:00'), '23:00'),
             'nightDelay' => max(5, (int) $s('alerts.nightDelay', '60')),
             'ownWindow'  => $s('alerts.ownWindow', '0') === '1', // tijden ook voor mijn eigen mails
+            'weekend'    => $s('alerts.weekend', '1') === '1', // za en zo de hele dag (de nachtregel blijft)
         ];
     }
 
@@ -60,8 +61,10 @@ class Alerts
      */
     public static function window(array $s, ?int $ts = null): array
     {
-        $t     = date('H:i', $ts ?? time());
-        $open  = self::between($t, $s['sendFrom'], $s['sendUntil']);
+        $ts  ??= time();
+        $t     = date('H:i', $ts);
+        // Weekend (zaterdag en zondag): de hele dag; maandag tot 's ochtends loopt via de gewone tijden
+        $open  = (! empty($s['weekend']) && (int) date('N', $ts) >= 6) || self::between($t, $s['sendFrom'], $s['sendUntil']);
         $night = self::between($t, $s['nightFrom'], $s['sendUntil']);
 
         return [$open, $night ? max($s['delay'], $s['nightDelay']) : $s['delay']];

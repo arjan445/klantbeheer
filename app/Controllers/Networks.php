@@ -318,6 +318,7 @@ class Networks extends BaseController
             }
             \App\Libraries\Setting::set('alerts.nightDelay', (string) max(5, min(1440, (int) ($this->request->getPost('alerts_nightDelay') ?: 60))));
             \App\Libraries\Setting::set('alerts.ownWindow', $this->request->getPost('alerts_ownWindow') ? '1' : '0');
+            \App\Libraries\Setting::set('alerts.weekend', $this->request->getPost('alerts_weekend') ? '1' : '0');
             // Per klant: mails naar de klant aan/uit (alleen de klanten die op de pagina stonden)
             $shown = array_map('intval', (array) $this->request->getPost('alerts_shown'));
             $on    = array_map('intval', (array) $this->request->getPost('alerts_customers'));
