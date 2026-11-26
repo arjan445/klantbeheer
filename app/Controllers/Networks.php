@@ -239,6 +239,15 @@ class Networks extends BaseController
             \App\Libraries\Setting::set('alerts.replyTo', mb_substr(trim((string) $this->request->getPost('alerts_replyTo')), 0, 255));
             \App\Libraries\Setting::set('alerts.phone', mb_substr(trim((string) $this->request->getPost('alerts_phone')), 0, 50));
             \App\Libraries\Setting::set('alerts.pdf', $this->request->getPost('alerts_pdf') ? '1' : '0');
+            // Per klant: mails naar de klant aan/uit (alleen de klanten die op de pagina stonden)
+            $shown = array_map('intval', (array) $this->request->getPost('alerts_shown'));
+            $on    = array_map('intval', (array) $this->request->getPost('alerts_customers'));
+            if ($shown !== []) {
+                db_connect()->table('customers')->whereIn('id', $shown)->update(['alert_mail' => 0]);
+                if ($on !== []) {
+                    db_connect()->table('customers')->whereIn('id', array_intersect($on, $shown))->update(['alert_mail' => 1]);
+                }
+            }
             \App\Libraries\Setting::set('unifi.controllerUrl', mb_substr(trim((string) $this->request->getPost('ctrl_url')), 0, 255));
             \App\Libraries\Setting::set('unifi.controllerUser', mb_substr(trim((string) $this->request->getPost('ctrl_user')), 0, 100));
             \App\Libraries\Setting::set('unifi.controllerInsecure', $this->request->getPost('ctrl_insecure') ? '1' : '0');
@@ -279,9 +288,9 @@ class Networks extends BaseController
             'alerts'      => \App\Libraries\Alerts::settings(),
             'alertAdmins' => \App\Libraries\Alerts::admins(),
             'alertLast'   => json_decode((string) \App\Libraries\Setting::get('alerts.last', ''), true),
-            'alertCustomers' => model(\App\Models\CustomerModel::class)->select('customers.id, customers.name, customers.email')
+            'alertCustomers' => model(\App\Models\CustomerModel::class)->select('customers.id, customers.name, customers.email, customers.alert_mail')
                 ->join('sites', 'sites.customer_id = customers.id')->join('network_sites', 'network_sites.site_id = sites.id')
-                ->where('customers.active', 1)->groupBy('customers.id, customers.name, customers.email')->orderBy('customers.name')->findAll(),
+                ->where('customers.active', 1)->groupBy('customers.id, customers.name, customers.email, customers.alert_mail')->orderBy('customers.name')->findAll(),
             'unifiSet' => (new Unifi())->configured(),
             'uispSet'  => Network::secret('uisp.token') !== '',
             'uispUrl'  => Network::setting('uisp.url'),

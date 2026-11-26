@@ -15,7 +15,9 @@ use Throwable;
  * Elke storing wordt één keer gemeld; blijft een apparaat offline, dan komt het in
  * een volgende mail onder "nog steeds niet bereikbaar".
  *
- * Testmodus (standaard): alles gaat naar het testadres, of naar de beheerders.
+ * Jij (het eigen adres, of de beheerders) krijgt altijd een mail bij elke
+ * storing. De klant alleen als "klanten mailen" aan staat én de klant zelf aan
+ * staat (per klant, standaard uit).
  */
 class Alerts
 {
@@ -53,19 +55,20 @@ class Alerts
         return array_values(array_filter(array_map('trim', preg_split('/[;,\s]+/', (string) $list)), static fn ($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
     }
 
-    /** @return array{0: list<string>, 1: string} [ontvangers, uitleg] */
-    public static function recipients(array $customer, ?array $settings = null): array
+    /** Wie krijgt altijd een mail: het eigen adres, anders de beheerders */
+    public static function internal(?array $settings = null): array
+    {
+        $own = self::splitEmails(($settings ?? self::settings())['testTo']);
+
+        return $own !== [] ? $own : self::admins();
+    }
+
+    /** Mailadressen van de klant, als die gemaild mag worden; anders [] */
+    public static function customerTo(array $customer, ?array $settings = null): array
     {
         $s = $settings ?? self::settings();
-        if ($s['mode'] === 'live') {
-            $to = self::splitEmails($customer['email'] ?? '');
-            if ($to !== []) {
-                return [$to, 'klant'];
-            }
-        }
-        $test = self::splitEmails($s['testTo']);
 
-        return [$test !== [] ? $test : self::admins(), $s['mode'] === 'live' ? 'geen e-mailadres bij klant, naar test' : 'test'];
+        return $s['mode'] === 'live' && ! empty($customer['alert_mail']) ? self::splitEmails($customer['email'] ?? '') : [];
     }
 
     // ------------------------------------------------------------------
@@ -130,26 +133,33 @@ class Alerts
                 continue;
             }
             // Alleen wat al lang genoeg offline is in de mail; de rest komt later
-            $list = array_values(array_filter($devices, static fn ($d) => $d['offline_since'] && $d['offline_since'] <= $cutoff));
-            [$to, $why] = self::recipients($customer, $s);
-            if ($to === []) {
-                $out[] = $customer['name'] . ': geen ontvanger (vul een testadres in)';
-                continue;
-            }
+            $list     = array_values(array_filter($devices, static fn ($d) => $d['offline_since'] && $d['offline_since'] <= $cutoff));
+            $toClient = self::customerTo($customer, $s);
+            $toMe     = self::internal($s);
+            $sent     = [];
             try {
-                self::send($customer, $list, $to, $s);
+                if ($toClient !== []) {
+                    self::send($customer, $list, $toClient, $s);
+                    $sent = array_merge($sent, $toClient);
+                }
+                if ($toMe !== []) {
+                    self::send($customer, $list, $toMe, $s, ['internal' => true, 'clientTo' => $toClient]);
+                    $sent = array_merge($sent, $toMe);
+                }
             } catch (Throwable $e) {
                 $out[] = $customer['name'] . ': versturen mislukt: ' . $e->getMessage();
                 log_message('error', 'Storingsmail ' . $customer['name'] . ': ' . $e->getMessage());
-                continue;
+                if ($sent === []) {
+                    continue; // niets weg: volgende keer opnieuw proberen
+                }
             }
             foreach ($new as $d) {
                 $db->table('network_alerts')->ignore(true)->insert([
                     'customer_id' => $customerId, 'network_device_id' => $d['id'], 'offline_since' => $d['offline_since'],
-                    'notified_at' => $now, 'recipients' => mb_substr(implode(', ', $to), 0, 500), 'mode' => $s['mode'],
+                    'notified_at' => $now, 'recipients' => mb_substr(implode(', ', $sent), 0, 500), 'mode' => $toClient !== [] ? 'live' : 'intern',
                 ]);
             }
-            $out[] = $customer['name'] . ': ' . count($new) . ' nieuw offline gemeld aan ' . implode(', ', $to) . ' (' . $why . ')';
+            $out[] = $customer['name'] . ': ' . count($new) . ' offline' . ($toClient !== [] ? ', klant gemaild (' . implode(', ', $toClient) . ')' : ', alleen intern');
         }
 
         return $out;
@@ -230,12 +240,15 @@ class Alerts
     // Mail
 
     /** Onderwerp, HTML en bijlage opbouwen */
-    public static function build(array $customer, array $devices, array $s, bool $preview = false): array
+    public static function build(array $customer, array $devices, array $s, bool $preview = false, array $opt = []): array
     {
         $count   = count($devices);
         $new     = array_values(array_filter($devices, static fn ($d) => ! $d['alerted']));
         $still   = array_values(array_filter($devices, static fn ($d) => $d['alerted']));
         $subject = ($count === 1 ? '1 apparaat' : $count . ' apparaten') . ' niet bereikbaar bij ' . $customer['name'];
+        if (! empty($opt['internal'])) {
+            $subject = 'Offline: ' . $customer['name'] . ' (' . ($count === 1 ? '1 apparaat' : $count . ' apparaten') . ')';
+        }
 
         $html = view('emails/offline', [
             'customer' => $customer,
@@ -243,23 +256,27 @@ class Alerts
             'still'    => $new === [] ? [] : $still,
             'settings' => $s,
             'logo'     => $preview ? base_url('img/logo.png') : 'cid:__LOGO__',
-            'test'     => $s['mode'] === 'test',
+            'internal' => (bool) ($opt['internal'] ?? false),
+            'test'     => (bool) ($opt['test'] ?? $preview),
+            'clientTo' => $opt['clientTo'] ?? [],
+            'wouldTo'  => self::splitEmails($customer['email'] ?? ''),
+            'clientOn' => $s['mode'] === 'live' && ! empty($customer['alert_mail']),
             'preview'  => $preview,
         ]);
 
         return ['subject' => $subject, 'html' => $html, 'sites' => array_values(array_unique(array_map(static fn ($d) => $d['topo']['site'], $devices)))];
     }
 
-    public static function send(array $customer, array $devices, array $to, array $s): void
+    public static function send(array $customer, array $devices, array $to, array $s, array $opt = []): void
     {
-        $mail  = self::build($customer, $devices, $s);
+        $mail  = self::build($customer, $devices, $s, false, $opt);
         $email = service('email');
         $email->clear(true);
         $email->setTo($to);
         if ($s['replyTo'] !== '' && filter_var($s['replyTo'], FILTER_VALIDATE_EMAIL)) {
             $email->setReplyTo($s['replyTo']);
         }
-        $email->setSubject(($s['mode'] === 'test' ? '[TEST] ' : '') . $mail['subject']);
+        $email->setSubject(($opt['test'] ?? false ? '[TEST] ' : '') . $mail['subject']);
         $email->setMailType('html');
 
         // Logo in de mail zelf (niet als link, wordt dan niet geblokkeerd)
@@ -284,13 +301,13 @@ class Alerts
 
     private static function plain(array $customer, array $devices): string
     {
-        $lines = ['Beste ' . ($customer['contact_name'] ?: $customer['name']) . ',', '', 'De volgende apparaten zijn niet bereikbaar:', ''];
+        $lines = ['Beste ' . ($customer['contact_name'] ?: $customer['name']) . ', deze apparaten zijn niet bereikbaar:', ''];
         foreach ($devices as $d) {
             $lines[] = '- ' . $d['display_name'] . ' (' . device_type_label($d['topo']['type']) . ')' . ($d['offline_since'] ? ', sinds ' . date('d-m H:i', strtotime($d['offline_since'])) : '')
-                . ($d['topo']['cause'] ? ' - waarschijnlijk doordat ' . $d['topo']['cause'] . ' niet bereikbaar is' : '');
+                . ($d['topo']['cause'] ? ', via ' . $d['topo']['cause'] : '');
         }
         $lines[] = '';
-        $lines[] = 'Wij kijken ernaar. Met vriendelijke groet, bongersonline';
+        $lines[] = 'Wij kijken mee. Groet, bongersonline';
 
         return implode("\n", $lines);
     }
@@ -301,7 +318,7 @@ class Alerts
      */
     public static function test(int $customerId): array
     {
-        $s        = ['mode' => 'test'] + self::settings();
+        $s        = self::settings();
         $customer = model(CustomerModel::class)->find($customerId);
         if ($customer === null) {
             throw new \RuntimeException('Klant niet gevonden.');
@@ -310,11 +327,12 @@ class Alerts
         if ($devices === []) {
             throw new \RuntimeException('Deze klant heeft nog geen apparaten uit UniFi of UISP.');
         }
-        [$to] = self::recipients($customer, $s);
+        $to = self::internal($s);
         if ($to === []) {
-            throw new \RuntimeException('Geen ontvanger: vul een testadres in.');
+            throw new \RuntimeException('Geen ontvanger: vul je eigen adres in.');
         }
-        self::send($customer, $devices, $to, $s);
+        // De versie die de klant zou krijgen, naar jou
+        self::send($customer, $devices, $to, $s, ['test' => true]);
 
         return $to;
     }
