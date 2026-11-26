@@ -24,6 +24,14 @@ class Network
     /** Na zoveel minuten zonder geslaagde synchronisatie is het offline-overzicht niet meer te vertrouwen */
     public const STALE_MINUTES = 30;
 
+    /**
+     * Platforms die echt worden opgehaald en bewaakt. Daarnaast bestaan in
+     * network_devices ook knopen die alleen in de topologie staan:
+     *  - manual: zelf toegevoegd (unmanaged switch, PoE-injector, modem, ...)
+     *  - vault:  een apparaat uit de kluis (Hikvision-camera, NVR, Ajax-hub, ...)
+     */
+    public const MONITORED = ['unifi', 'uisp'];
+
     // ------------------------------------------------------------------
     // Instellingen
 
@@ -85,8 +93,10 @@ class Network
     public static function platformLabel(?string $platform): string
     {
         return match ($platform) {
-            'unifi' => 'UniFi',
-            'uisp'  => 'UISP',
+            'unifi'  => 'UniFi',
+            'uisp'   => 'UISP',
+            'manual' => 'Eigen',
+            'vault'  => 'Kluis',
             default => (string) $platform,
         };
     }
@@ -319,8 +329,8 @@ class Network
         // Tellers per site
         foreach ($sitesM->where('platform', $platform)->findAll() as $s) {
             $set = [
-                'device_count'  => $devM->where('network_site_id', $s['id'])->where('gone', 0)->countAllResults(),
-                'offline_count' => $devM->where('network_site_id', $s['id'])->where('gone', 0)->where('monitor', 1)->where('ignored', 0)->where('status', 'offline')->countAllResults(),
+                'device_count'  => $devM->where('network_site_id', $s['id'])->where('gone', 0)->whereIn('platform', self::MONITORED)->countAllResults(),
+                'offline_count' => $devM->where('network_site_id', $s['id'])->where('gone', 0)->whereIn('platform', self::MONITORED)->where('monitor', 1)->where('ignored', 0)->where('status', 'offline')->countAllResults(),
             ];
             $write(static fn () => $sitesM->update($s['id'], $set), 'tellers ' . $s['name']);
         }
@@ -338,13 +348,13 @@ class Network
      */
     public static function autoLink(): int
     {
-        $unlinked = model(NetworkDeviceModel::class)->where('device_id', null)->where('gone', 0)->findAll();
+        $unlinked = model(NetworkDeviceModel::class)->where('device_id', null)->where('gone', 0)->whereIn('platform', self::MONITORED)->findAll();
         if ($unlinked === []) {
             return 0;
         }
 
         $taken = array_flip(array_map('intval', array_column(
-            model(NetworkDeviceModel::class)->select('device_id')->where('device_id IS NOT NULL', null, false)->findAll(), 'device_id')));
+            model(NetworkDeviceModel::class)->select('device_id')->where('device_id IS NOT NULL', null, false)->whereIn('platform', self::MONITORED)->findAll(), 'device_id')));
 
         $byMac = $bySerial = [];
         foreach (model(DeviceModel::class)->select('id, mac, serial')->groupStart()->where('mac IS NOT NULL', null, false)->orWhere('serial IS NOT NULL', null, false)->groupEnd()->findAll() as $d) {
@@ -482,6 +492,9 @@ class Network
     /** Soort apparaat raden uit model, naam en productlijn */
     public static function guessType(array $nd): string
     {
+        if (($nd['platform'] ?? '') === 'manual') {
+            return $nd['kind'] && isset(device_types()[$nd['kind']]) ? $nd['kind'] : 'other'; // zelf gekozen soort
+        }
         $kind = strtolower((string) $nd['kind']);
         if ($kind === 'protect') {
             $t = device_type_guess((string) $nd['model'] . ' ' . $nd['name']);
@@ -515,7 +528,7 @@ class Network
      */
     public static function candidates(array $nd, int $customerId, ?int $siteId): array
     {
-        $taken = array_map('intval', array_column(model(NetworkDeviceModel::class)->select('device_id')->where('device_id IS NOT NULL', null, false)->findAll(), 'device_id'));
+        $taken = array_map('intval', array_column(model(NetworkDeviceModel::class)->select('device_id')->where('device_id IS NOT NULL', null, false)->whereIn('platform', self::MONITORED)->findAll(), 'device_id'));
         $q     = model(DeviceModel::class)->where('customer_id', $customerId);
         if ($taken !== []) {
             $q->whereNotIn('id', $taken);
@@ -576,6 +589,7 @@ class Network
     public static function offline(): array
     {
         $base = static fn () => model(NetworkDeviceModel::class)->withContext()
+            ->whereIn('network_devices.platform', self::MONITORED)
             ->where('network_devices.monitor', 1)->where('network_devices.ignored', 0)->where('network_devices.gone', 0)
             ->groupStart()->where('network_sites.ignored', 0)->orWhere('network_sites.id IS NULL', null, false)->groupEnd();
 
@@ -631,7 +645,7 @@ class Network
         $out = [];
         foreach (array_chunk($deviceIds, 500) as $chunk) {
             foreach (model(NetworkDeviceModel::class)->select('id, device_id, platform, status, monitor, last_seen_at, offline_since, gone')
-                ->whereIn('device_id', $chunk)->findAll() as $r) {
+                ->whereIn('device_id', $chunk)->whereIn('platform', self::MONITORED)->findAll() as $r) {
                 $out[(int) $r['device_id']] = $r;
             }
         }

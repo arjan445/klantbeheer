@@ -151,6 +151,10 @@ $routes->group('netwerk', ['filter' => 'can:vault.view'], static function ($rout
     $routes->post('topologie/(:num)/automatisch', [Topologies::class, 'auto/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('topologie/(:num)/toevoegen', [Topologies::class, 'add/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('topologie/(:num)/ophalen', [Topologies::class, 'refresh/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/eigen', [Topologies::class, 'addManual/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/kluis', [Topologies::class, 'addVault/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/hernoemen', [Topologies::class, 'rename/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/verwijderen', [Topologies::class, 'remove/$1'], ['filter' => 'can:vault.manage']);
 });
 
 // Doosscan (mobiel): serienummers/MAC scannen en aan apparaten koppelen

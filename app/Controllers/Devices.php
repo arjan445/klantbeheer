@@ -68,7 +68,7 @@ class Devices extends BaseController
 
         return $this->page('devices/show', [
             'device'   => $device,
-            'network'  => model(\App\Models\NetworkDeviceModel::class)->withContext()->where('network_devices.device_id', $id)->first(),
+            'network'  => model(\App\Models\NetworkDeviceModel::class)->withContext()->where('network_devices.device_id', $id)->whereIn('network_devices.platform', \App\Libraries\Network::MONITORED)->first(),
             'invoice'  => $device['purchase_invoice_id'] ? model(\App\Models\PurchaseInvoiceModel::class)->withSupplier()->where('purchase_invoices.id', $device['purchase_invoice_id'])->first() : null,
             'quote'    => $quote,
             'customer' => model(CustomerModel::class)->find($device['customer_id']),

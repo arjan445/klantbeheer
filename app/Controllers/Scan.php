@@ -243,7 +243,7 @@ class Scan extends BaseController
         }
         $list = $q->findAll(500);
 
-        $taken = array_flip(array_map('intval', array_column(model(NetworkDeviceModel::class)->select('device_id')->where('device_id IS NOT NULL', null, false)->findAll(), 'device_id')));
+        $taken = array_flip(array_map('intval', array_column(model(NetworkDeviceModel::class)->select('device_id')->where('device_id IS NOT NULL', null, false)->whereIn('platform', Network::MONITORED)->findAll(), 'device_id')));
         $types = match ($p['brand']) {
             'Hikvision' => ['camera', 'nvr', 'intercom', 'access'],
             'Ajax'      => array_keys(array_filter(device_types(), static fn ($t, $k) => str_starts_with($k, 'alarm'), ARRAY_FILTER_USE_BOTH)),
