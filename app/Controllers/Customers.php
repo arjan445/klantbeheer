@@ -31,7 +31,10 @@ class Customers extends BaseController
             ->orderBy('active', 'DESC')->orderBy('name')
             ->findAll();
 
-        return $this->page('customers/index', ['customers' => $customers], 'Klanten');
+        return $this->page('customers/index', [
+            'customers' => $customers,
+            'network'   => user_can('vault.view') ? \App\Libraries\Network::byCustomer() : null,
+        ], 'Klanten');
     }
 
     public function show($id)
@@ -59,6 +62,7 @@ class Customers extends BaseController
         }
 
         if (user_can('vault.view')) {
+            $data['network'] = \App\Libraries\Network::byCustomer((int) $id)[(int) $id] ?? null;
             $data['devices'] = model(DeviceModel::class)->where('customer_id', $id)
                 ->orderBy('site_id')->orderBy('type')->orderBy('name')->findAll();
         }

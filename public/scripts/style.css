@@ -269,3 +269,7 @@ body:has(.scan-bar:not(.d-none)) { padding-bottom: 90px; }
 .cm-pop-state { margin-top: 6px; font-weight: 600; }
 .cm-t-down { color: #dc3545; } .cm-t-warn { color: #b06a00; } .cm-t-ok { color: #198754; } .cm-t-none { color: #6c757d; }
 .cm-pop-list { margin: 4px 0 4px; padding-left: 1.1rem; }
+
+/* Klantpagina: locaties & netwerk */
+.loc-card.loc-down { border-color: #f1aeb5; box-shadow: inset 3px 0 0 #dc3545; }
+.loc-notes { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
