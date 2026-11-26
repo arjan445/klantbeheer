@@ -231,6 +231,14 @@ class Networks extends BaseController
             Network::saveSecretIf('unifi.apiKey', $this->request->getPost('unifi_apiKey'), (bool) $this->request->getPost('unifi_clear'));
             Network::saveSecretIf('uisp.token', $this->request->getPost('uisp_token'), (bool) $this->request->getPost('uisp_clear'));
             \App\Libraries\Setting::set('uisp.url', mb_substr(trim((string) $this->request->getPost('uisp_url')), 0, 255));
+            // Storingsmeldingen
+            \App\Libraries\Setting::set('alerts.enabled', $this->request->getPost('alerts_enabled') ? '1' : '0');
+            \App\Libraries\Setting::set('alerts.mode', $this->request->getPost('alerts_mode') === 'live' ? 'live' : 'test');
+            \App\Libraries\Setting::set('alerts.delay', (string) max(5, min(1440, (int) ($this->request->getPost('alerts_delay') ?: 30))));
+            \App\Libraries\Setting::set('alerts.testTo', mb_substr(trim((string) $this->request->getPost('alerts_testTo')), 0, 255));
+            \App\Libraries\Setting::set('alerts.replyTo', mb_substr(trim((string) $this->request->getPost('alerts_replyTo')), 0, 255));
+            \App\Libraries\Setting::set('alerts.phone', mb_substr(trim((string) $this->request->getPost('alerts_phone')), 0, 50));
+            \App\Libraries\Setting::set('alerts.pdf', $this->request->getPost('alerts_pdf') ? '1' : '0');
             \App\Libraries\Setting::set('unifi.controllerUrl', mb_substr(trim((string) $this->request->getPost('ctrl_url')), 0, 255));
             \App\Libraries\Setting::set('unifi.controllerUser', mb_substr(trim((string) $this->request->getPost('ctrl_user')), 0, 100));
             \App\Libraries\Setting::set('unifi.controllerInsecure', $this->request->getPost('ctrl_insecure') ? '1' : '0');
@@ -268,6 +276,12 @@ class Networks extends BaseController
         }
 
         return $this->page('network/settings', [
+            'alerts'      => \App\Libraries\Alerts::settings(),
+            'alertAdmins' => \App\Libraries\Alerts::admins(),
+            'alertLast'   => json_decode((string) \App\Libraries\Setting::get('alerts.last', ''), true),
+            'alertCustomers' => model(\App\Models\CustomerModel::class)->select('customers.id, customers.name, customers.email')
+                ->join('sites', 'sites.customer_id = customers.id')->join('network_sites', 'network_sites.site_id = sites.id')
+                ->where('customers.active', 1)->groupBy('customers.id, customers.name, customers.email')->orderBy('customers.name')->findAll(),
             'unifiSet' => (new Unifi())->configured(),
             'uispSet'  => Network::secret('uisp.token') !== '',
             'uispUrl'  => Network::setting('uisp.url'),
@@ -281,6 +295,41 @@ class Networks extends BaseController
     }
 
     // ------------------------------------------------------------------
+
+    /** Voorbeeld van de storingsmail in de browser */
+    public function alertPreview()
+    {
+        $id       = (int) $this->request->getGet('klant');
+        $customer = model(\App\Models\CustomerModel::class)->find($id);
+        if ($customer === null) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+        $devices = \App\Libraries\Alerts::offlineByCustomer($id)[$id] ?? \App\Libraries\Alerts::sample($id);
+        if ($devices === []) {
+            return $this->back('Deze klant heeft nog geen apparaten uit UniFi of UISP.', 'error', site_url('beheer/netwerk'));
+        }
+        if ($this->request->getGet('pdf')) {
+            $pdf = \App\Libraries\TopologyPdf::render(array_values(array_unique(array_map(static fn ($d) => $d['topo']['site'], $devices))), array_map('intval', array_column($devices, 'id')));
+
+            return $this->response->setHeader('Content-Type', 'application/pdf')
+                ->setHeader('Content-Disposition', 'inline; filename="Netwerkoverzicht.pdf"')->setBody($pdf);
+        }
+        $mail = \App\Libraries\Alerts::build($customer, $devices, \App\Libraries\Alerts::settings(), true);
+
+        return $this->response->setBody($mail['html']);
+    }
+
+    /** Testmail versturen (altijd naar het testadres/de beheerders) */
+    public function alertTest()
+    {
+        try {
+            $to = \App\Libraries\Alerts::test((int) $this->request->getPost('klant'));
+        } catch (Throwable $e) {
+            return $this->back('Testmail niet verstuurd: ' . $e->getMessage(), 'error', site_url('beheer/netwerk#meldingen'));
+        }
+
+        return $this->back('Testmail verstuurd naar ' . implode(', ', $to) . '.', 'message', site_url('beheer/netwerk#meldingen'));
+    }
 
     /** Locaties gegroepeerd per klant, voor keuzelijsten */
     private function locationOptions(): array

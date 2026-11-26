@@ -205,6 +205,8 @@ $routes->group('beheer', static function ($routes) {
     $routes->match(['GET', 'POST'], 'gebruikers/nieuw', [Users::class, 'create'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'gebruikers/(:num)', [Users::class, 'edit/$1'], ['filter' => 'can:users.manage']);
     $routes->match(['GET', 'POST'], 'netwerk', [Networks::class, 'settings'], ['filter' => 'can:settings.manage']);
+    $routes->get('netwerk/melding-voorbeeld', [Networks::class, 'alertPreview'], ['filter' => 'can:settings.manage']);
+    $routes->post('netwerk/melding-test', [Networks::class, 'alertTest'], ['filter' => 'can:settings.manage']);
     $routes->get('onderhoud', [Maintenance::class, 'index'], ['filter' => 'can:settings.manage']);
     $routes->post('onderhoud/migreren', [Maintenance::class, 'migrate'], ['filter' => 'can:settings.manage']);
     $routes->post('onderhoud/cron-sleutel', [Maintenance::class, 'newToken'], ['filter' => 'can:settings.manage']);

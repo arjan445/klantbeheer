@@ -354,6 +354,55 @@ class Topology
     }
 
     /**
+     * Boomvolgorde zoals de tekening: bovenaan de router, dan per poort naar beneden.
+     *
+     * @param list<array> $nodes  uit nodes()
+     * @return array{order: list<array{node:array, depth:int}>, byId: array<int,array>}
+     */
+    public static function tree(array $nodes): array
+    {
+        $byId = [];
+        foreach ($nodes as $n) {
+            $byId[$n['id']] = $n;
+        }
+        $kids = [];
+        foreach ($nodes as $n) {
+            if ($n['parent'] && isset($byId[$n['parent']])) {
+                $kids[$n['parent']][] = $n;
+            }
+        }
+        $port = static fn ($p) => preg_match('/\d+/', (string) $p, $m) ? (int) $m[0] : 9999;
+        foreach ($kids as &$list) {
+            usort($list, static fn ($a, $b) => [$port($a['parent_port']), $a['name']] <=> [$port($b['parent_port']), $b['name']]);
+        }
+        unset($list);
+        $rank  = static fn ($n) => $n['type'] === 'router' ? 0 : ($n['type'] === 'switch' ? 1 : 2);
+        $roots = array_values(array_filter($nodes, static fn ($n) => ! $n['parent'] || ! isset($byId[$n['parent']])));
+        usort($roots, static fn ($a, $b) => [$rank($a), -count($kids[$a['id']] ?? []), $a['name']] <=> [$rank($b), -count($kids[$b['id']] ?? []), $b['name']]);
+
+        $order = [];
+        $seen  = [];
+        $walk  = static function (array $n, int $depth) use (&$walk, &$order, &$seen, $kids) {
+            if (isset($seen[$n['id']])) {
+                return;
+            }
+            $seen[$n['id']] = true;
+            $order[]        = ['node' => $n, 'depth' => $depth];
+            foreach ($kids[$n['id']] ?? [] as $c) {
+                $walk($c, $depth + 1);
+            }
+        };
+        foreach ($roots as $r) {
+            $walk($r, 0);
+        }
+        foreach ($nodes as $n) { // rondjes: alsnog meenemen
+            $walk($n, 0);
+        }
+
+        return ['order' => $order, 'byId' => $byId];
+    }
+
+    /**
      * Apparaten die je aan deze topologie kunt toevoegen (uit andere sites), per site.
      *
      * @return array<string, list<array{id:int, name:string}>>
