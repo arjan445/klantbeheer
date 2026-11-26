@@ -147,6 +147,7 @@ $routes->group('netwerk', ['filter' => 'can:vault.view'], static function ($rout
     $routes->post('apparaat/(:num)/ontkoppelen', [Networks::class, 'unlink/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/terugzetten', [Networks::class, 'restore/$1'], ['filter' => 'can:vault.manage']);
     $routes->get('topologie/(:num)', [Topologies::class, 'show/$1']);
+    $routes->get('topologie/(:num)/pdf', [Topologies::class, 'pdf/$1']);
     $routes->post('topologie/(:num)/verbinding', [Topologies::class, 'save/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('topologie/(:num)/automatisch', [Topologies::class, 'auto/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('topologie/(:num)/toevoegen', [Topologies::class, 'add/$1'], ['filter' => 'can:vault.manage']);
