@@ -33,7 +33,38 @@ class Alerts
             'phone'   => $s('alerts.phone'),
             'replyTo' => $s('alerts.replyTo'),
             'pdf'     => $s('alerts.pdf', '1') === '1',
+            // Klantmails alleen binnen deze tijden; 's nachts pas na een langere storing
+            'sendFrom'   => self::hhmm($s('alerts.sendFrom', '17:00'), '17:00'),
+            'sendUntil'  => self::hhmm($s('alerts.sendUntil', '06:00'), '06:00'),
+            'nightFrom'  => self::hhmm($s('alerts.nightFrom', '23:00'), '23:00'),
+            'nightDelay' => max(5, (int) $s('alerts.nightDelay', '60')),
+            'ownWindow'  => $s('alerts.ownWindow', '0') === '1', // tijden ook voor mijn eigen mails
         ];
+    }
+
+    private static function hhmm(string $v, string $default): string
+    {
+        return preg_match('/^([01]?\d|2[0-3]):[0-5]\d$/', trim($v)) ? str_pad(trim($v), 5, '0', STR_PAD_LEFT) : $default;
+    }
+
+    /** Valt $time (H:i) tussen $from en $until? Werkt ook over middernacht heen (17:00-06:00). */
+    public static function between(string $time, string $from, string $until): bool
+    {
+        return $from <= $until ? ($time >= $from && $time < $until) : ($time >= $from || $time < $until);
+    }
+
+    /**
+     * Mag er nu een (klant)mail uit, en hoe lang moet de storing dan minimaal duren?
+     *
+     * @return array{0: bool, 1: int} [binnen de verzendtijden, minimale duur in minuten]
+     */
+    public static function window(array $s, ?int $ts = null): array
+    {
+        $t     = date('H:i', $ts ?? time());
+        $open  = self::between($t, $s['sendFrom'], $s['sendUntil']);
+        $night = self::between($t, $s['nightFrom'], $s['sendUntil']);
+
+        return [$open, $night ? max($s['delay'], $s['nightDelay']) : $s['delay']];
     }
 
     /** Beheerders met e-mailadres (zelfde als de factuurherinnering) */
@@ -110,7 +141,7 @@ class Alerts
                     if (! $d['alerted'] && $d['offline_since']) {
                         $db->table('network_alerts')->ignore(true)->insert([
                             'customer_id' => $customerId, 'network_device_id' => $d['id'], 'offline_since' => $d['offline_since'],
-                            'notified_at' => $now, 'recipients' => null, 'mode' => 'start',
+                            'notified_at' => $now, 'recipients' => null, 'mode' => 'start', 'client_notified_at' => $now,
                         ]);
                         $n++;
                     }
@@ -121,48 +152,103 @@ class Alerts
             return [$n . ' apparaten waren al offline bij het aanzetten; die worden niet gemeld, nieuwe storingen wel.'];
         }
 
-        $cutoff = date('Y-m-d H:i:s', time() - $s['delay'] * 60);
-        $out    = [];
+        [$open, $clientMin] = self::window($s);
+        $cutMe     = date('Y-m-d H:i:s', time() - ($s['ownWindow'] ? $clientMin : $s['delay']) * 60);
+        $cutClient = date('Y-m-d H:i:s', time() - $clientMin * 60);
+        $meOpen    = ! $s['ownWindow'] || $open;
+        $out       = [];
+
         foreach (self::offlineByCustomer() as $customerId => $devices) {
-            $new = array_filter($devices, static fn ($d) => ! $d['alerted'] && $d['offline_since'] && $d['offline_since'] <= $cutoff);
-            if ($new === []) {
+            $long = static fn (string $cut) => array_values(array_filter($devices, static fn ($d) => $d['offline_since'] && $d['offline_since'] <= $cut));
+            $newMe = $meOpen ? array_filter($long($cutMe), static fn ($d) => ! $d['alerted']) : [];
+            $toClient = [];
+            $customer = null;
+            $newClient = [];
+            if ($open) {
+                $customer  = model(CustomerModel::class)->find($customerId);
+                $toClient  = $customer ? self::customerTo($customer, $s) : [];
+                $newClient = $toClient !== [] ? array_filter($long($cutClient), static fn ($d) => ! $d['client_alerted']) : [];
+            }
+            if ($newMe === [] && $newClient === []) {
                 continue;
             }
-            $customer = model(CustomerModel::class)->find($customerId);
+            $customer ??= model(CustomerModel::class)->find($customerId);
             if ($customer === null) {
                 continue;
             }
-            // Alleen wat al lang genoeg offline is in de mail; de rest komt later
-            $list     = array_values(array_filter($devices, static fn ($d) => $d['offline_since'] && $d['offline_since'] <= $cutoff));
-            $toClient = self::customerTo($customer, $s);
-            $toMe     = self::internal($s);
-            $sent     = [];
-            try {
-                if ($toClient !== []) {
-                    self::send($customer, $list, $toClient, $s);
-                    $sent = array_merge($sent, $toClient);
-                }
-                if ($toMe !== []) {
-                    self::send($customer, $list, $toMe, $s, ['internal' => true, 'clientTo' => $toClient]);
-                    $sent = array_merge($sent, $toMe);
-                }
-            } catch (Throwable $e) {
-                $out[] = $customer['name'] . ': versturen mislukt: ' . $e->getMessage();
-                log_message('error', 'Storingsmail ' . $customer['name'] . ': ' . $e->getMessage());
-                if ($sent === []) {
-                    continue; // niets weg: volgende keer opnieuw proberen
+
+            // 1. Klant (binnen de verzendtijden, na de minimale duur)
+            $clientSent = false;
+            if ($newClient !== []) {
+                try {
+                    self::send($customer, $long($cutClient), $toClient, $s, ['audience' => 'client']);
+                    $clientSent = true;
+                    foreach ($newClient as $d) {
+                        self::mark($customerId, $d, $now, ['client_notified_at' => $now, 'client_recipients' => mb_substr(implode(', ', $toClient), 0, 500), 'mode' => 'live']);
+                    }
+                    $out[] = $customer['name'] . ': klant gemaild (' . implode(', ', $toClient) . ')';
+                } catch (Throwable $e) {
+                    $out[] = $customer['name'] . ': klantmail mislukt: ' . $e->getMessage();
+                    log_message('error', 'Storingsmail klant ' . $customer['name'] . ': ' . $e->getMessage());
                 }
             }
-            foreach ($new as $d) {
-                $db->table('network_alerts')->ignore(true)->insert([
-                    'customer_id' => $customerId, 'network_device_id' => $d['id'], 'offline_since' => $d['offline_since'],
-                    'notified_at' => $now, 'recipients' => mb_substr(implode(', ', $sent), 0, 500), 'mode' => $toClient !== [] ? 'live' : 'intern',
-                ]);
+
+            // 2. Jij (altijd, meteen na de wachttijd)
+            if ($newMe !== []) {
+                $toMe = self::internal($s);
+                if ($toMe === []) {
+                    $out[] = 'Geen eigen adres en geen beheerders met e-mail';
+                    continue;
+                }
+                $note = self::clientNote($customer, $s, $clientSent, $toClient, $open, $clientMin);
+                try {
+                    self::send($customer, $long($cutMe), $toMe, $s, ['audience' => 'internal', 'internal' => true, 'clientNote' => $note]);
+                    foreach ($newMe as $d) {
+                        self::mark($customerId, $d, $now, ['notified_at' => $now, 'recipients' => mb_substr(implode(', ', $toMe), 0, 500)]);
+                    }
+                    $out[] = $customer['name'] . ': ' . count($newMe) . ' offline, gemeld aan ' . implode(', ', $toMe) . ' (' . $note . ')';
+                } catch (Throwable $e) {
+                    $out[] = $customer['name'] . ': versturen mislukt: ' . $e->getMessage();
+                    log_message('error', 'Storingsmail ' . $customer['name'] . ': ' . $e->getMessage());
+                }
             }
-            $out[] = $customer['name'] . ': ' . count($new) . ' offline' . ($toClient !== [] ? ', klant gemaild (' . implode(', ', $toClient) . ')' : ', alleen intern');
         }
 
         return $out;
+    }
+
+    /** Storing vastleggen of bijwerken (één regel per apparaat per storing) */
+    private static function mark(int $customerId, array $d, string $now, array $set): void
+    {
+        $db  = db_connect();
+        $row = $db->table('network_alerts')->where('network_device_id', $d['id'])->where('offline_since', $d['offline_since'])->get()->getRowArray();
+        if ($row) {
+            $db->table('network_alerts')->where('id', $row['id'])->update($set);
+        } else {
+            $db->table('network_alerts')->insert($set + [
+                'customer_id' => $customerId, 'network_device_id' => $d['id'], 'offline_since' => $d['offline_since'],
+                'notified_at' => $now, 'mode' => 'intern',
+            ]);
+        }
+    }
+
+    /** Uitleg voor jouw mail: is/wordt de klant gemaild? */
+    private static function clientNote(array $customer, array $s, bool $sent, array $toClient, bool $open, int $min): string
+    {
+        if ($sent) {
+            return 'klant ook gemaild (' . implode(', ', $toClient) . ')';
+        }
+        if ($s['mode'] !== 'live' || empty($customer['alert_mail'])) {
+            return 'klant niet gemaild (staat uit)';
+        }
+        if (self::splitEmails($customer['email'] ?? '') === []) {
+            return 'klant niet gemaild (geen e-mailadres)';
+        }
+        if (! $open) {
+            return 'klant krijgt vanaf ' . $s['sendFrom'] . ' een mail als het dan nog speelt';
+        }
+
+        return 'klant krijgt een mail als het ' . $min . ' minuten duurt';
     }
 
     /**
@@ -180,8 +266,8 @@ class Alerts
         $rows = $q->findAll();
 
         $alerted = [];
-        foreach (db_connect()->table('network_alerts')->select('network_device_id, offline_since')->where('recovered_at', null)->get()->getResultArray() as $a) {
-            $alerted[$a['network_device_id'] . '|' . $a['offline_since']] = true;
+        foreach (db_connect()->table('network_alerts')->select('network_device_id, offline_since, notified_at, client_notified_at, recipients, mode')->where('recovered_at', null)->get()->getResultArray() as $a) {
+            $alerted[$a['network_device_id'] . '|' . $a['offline_since']] = $a;
         }
 
         $by = [];
@@ -190,7 +276,9 @@ class Alerts
             if (! $c || ($onlyCustomer !== null && $c !== $onlyCustomer)) {
                 continue;
             }
-            $r['alerted'] = isset($alerted[$r['id'] . '|' . $r['offline_since']]);
+            $a                   = $alerted[$r['id'] . '|' . $r['offline_since']] ?? null;
+            $r['alerted']        = $a !== null && ($a['recipients'] !== null || $a['mode'] === 'start'); // jij hebt hem gehad
+            $r['client_alerted'] = $a !== null && $a['client_notified_at'] !== null;
             $by[$c][]     = $r;
         }
 
@@ -243,8 +331,9 @@ class Alerts
     public static function build(array $customer, array $devices, array $s, bool $preview = false, array $opt = []): array
     {
         $count   = count($devices);
-        $new     = array_values(array_filter($devices, static fn ($d) => ! $d['alerted']));
-        $still   = array_values(array_filter($devices, static fn ($d) => $d['alerted']));
+        $key     = ($opt['audience'] ?? 'client') === 'internal' ? 'alerted' : 'client_alerted';
+        $new     = array_values(array_filter($devices, static fn ($d) => empty($d[$key])));
+        $still   = array_values(array_filter($devices, static fn ($d) => ! empty($d[$key])));
         $subject = ($count === 1 ? '1 apparaat' : $count . ' apparaten') . ' niet bereikbaar bij ' . $customer['name'];
         if (! empty($opt['internal'])) {
             $subject = 'Offline: ' . $customer['name'] . ' (' . ($count === 1 ? '1 apparaat' : $count . ' apparaten') . ')';
@@ -258,7 +347,7 @@ class Alerts
             'logo'     => $preview ? base_url('img/logo.png') : 'cid:__LOGO__',
             'internal' => (bool) ($opt['internal'] ?? false),
             'test'     => (bool) ($opt['test'] ?? $preview),
-            'clientTo' => $opt['clientTo'] ?? [],
+            'clientNote' => $opt['clientNote'] ?? '',
             'wouldTo'  => self::splitEmails($customer['email'] ?? ''),
             'clientOn' => $s['mode'] === 'live' && ! empty($customer['alert_mail']),
             'preview'  => $preview,
@@ -350,7 +439,8 @@ class Alerts
         foreach ($rows as &$r) {
             $r['status']        = 'offline';
             $r['offline_since'] = $since;
-            $r['alerted']       = false;
+            $r['alerted']        = false;
+            $r['client_alerted'] = false;
         }
         unset($r);
         $sorted = self::sortByTopology($rows);

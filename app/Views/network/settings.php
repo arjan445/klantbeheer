@@ -60,6 +60,15 @@
             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="alerts_pdf" value="1" id="al-pdf" <?= $alerts['pdf'] ? 'checked' : '' ?>><label class="form-check-label" for="al-pdf">Netwerkoverzicht (PDF) meesturen</label></div>
         </div>
     </div>
+    <div class="row g-2 mt-2 align-items-end">
+        <div class="col-12 small fw-semibold">Wanneer mag de klant gemaild worden?</div>
+        <div class="col-6 col-md-3"><label class="form-label small mb-1">Vanaf</label><input type="time" name="alerts_sendFrom" class="form-control" value="<?= esc($alerts['sendFrom'], 'attr') ?>"></div>
+        <div class="col-6 col-md-3"><label class="form-label small mb-1">Tot</label><input type="time" name="alerts_sendUntil" class="form-control" value="<?= esc($alerts['sendUntil'], 'attr') ?>"></div>
+        <div class="col-6 col-md-3"><label class="form-label small mb-1">'s Nachts vanaf</label><input type="time" name="alerts_nightFrom" class="form-control" value="<?= esc($alerts['nightFrom'], 'attr') ?>"></div>
+        <div class="col-6 col-md-3"><label class="form-label small mb-1">dan pas na (min)</label><input type="number" min="5" max="1440" name="alerts_nightDelay" class="form-control" value="<?= (int) $alerts['nightDelay'] ?>"></div>
+        <div class="col-12 form-text mt-1">Buiten deze tijden krijgt de klant niets; speelt de storing bij het begin van de verzendtijd nog, dan gaat de mail alsnog. Overdag ben jij bereikbaar.</div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="alerts_ownWindow" value="1" id="al-own" <?= $alerts['ownWindow'] ? 'checked' : '' ?>><label class="form-check-label" for="al-own">Deze tijden ook voor mijn eigen mails</label></div></div>
+    </div>
     <label class="form-label small mb-1 mt-3">Welke klanten krijgen een mail?</label>
     <div class="row g-1 alert-customers">
         <?php foreach ($alertCustomers as $c) : ?>
