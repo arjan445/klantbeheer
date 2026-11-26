@@ -9,6 +9,10 @@
     </div>
 <?php endif ?>
 
+<?php if (isset($customerMap)) : ?>
+    <?= view('network/_map', ['map' => $customerMap]) ?>
+<?php endif ?>
+
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-check2-square"></i> Taken <?php if ($todoCount) : ?><span class="badge text-bg-light border"><?= (int) $todoCount ?></span><?php endif ?></span>
