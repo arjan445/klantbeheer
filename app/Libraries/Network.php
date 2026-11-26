@@ -253,6 +253,13 @@ class Network
                     log_message('error', 'Storingsmails: ' . $e->getMessage());
                 }
             }
+
+            // Klantenkaart: een paar nieuwe adressen opzoeken
+            try {
+                CustomerMap::fill(10, 10);
+            } catch (Throwable $e) {
+                log_message('info', 'Klantenkaart: ' . $e->getMessage());
+            }
         }
 
         return $results;

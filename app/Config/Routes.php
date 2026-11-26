@@ -11,6 +11,7 @@ use App\Controllers\Networks;
 use App\Controllers\PurchaseInvoices;
 use App\Controllers\Scan;
 use App\Controllers\Topologies;
+use App\Controllers\CustomerMaps;
 use App\Controllers\Maintenance;
 use App\Controllers\Domains;
 use App\Controllers\Products;
@@ -146,6 +147,9 @@ $routes->group('netwerk', ['filter' => 'can:vault.view'], static function ($rout
     $routes->post('apparaat/(:num)/bewaken', [Networks::class, 'monitor/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/ontkoppelen', [Networks::class, 'unlink/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/terugzetten', [Networks::class, 'restore/$1'], ['filter' => 'can:vault.manage']);
+    $routes->get('kaart', [CustomerMaps::class, 'index']);
+    $routes->get('kaart/data', [CustomerMaps::class, 'data']);
+    $routes->post('kaart/adressen', [CustomerMaps::class, 'geocode']);
     $routes->get('topologie/(:num)', [Topologies::class, 'show/$1']);
     $routes->get('topologie/(:num)/pdf', [Topologies::class, 'pdf/$1']);
     $routes->post('topologie/(:num)/verbinding', [Topologies::class, 'save/$1'], ['filter' => 'can:vault.manage']);

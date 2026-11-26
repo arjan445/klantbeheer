@@ -25,6 +25,15 @@ class Dashboard extends BaseController
             $data['netOffline'] = \App\Libraries\Network::offline();
         }
 
+        // Klantenkaart: waar gaat wat mis?
+        if (user_can('vault.view')) {
+            try {
+                $data['customerMap'] = \App\Libraries\CustomerMap::points();
+            } catch (\Throwable $e) {
+                log_message('error', 'Klantenkaart: ' . $e->getMessage()); // bv. migratie nog niet gedraaid
+            }
+        }
+
         if (user_can('billing.view')) {
             $subs = model(SubscriptionModel::class)->withDetails()->where('subscriptions.status', 'active')->findAll();
 
