@@ -39,6 +39,22 @@ class Topologies extends BaseController
         ], 'Topologie · ' . $site['name']);
     }
 
+    /** Afdrukversie (Opslaan als PDF) */
+    public function pdf($id)
+    {
+        $site = $this->findOr404(NetworkSiteModel::class, $id);
+        $loc  = $site['site_id'] ? model(SiteModel::class)->select('sites.*, customers.name AS customer_name')
+            ->join('customers', 'customers.id = sites.customer_id')->where('sites.id', $site['site_id'])->first() : null;
+
+        return view('network/topology_print', [
+            'site'        => $site,
+            'loc'         => $loc,
+            'nodes'       => Topology::nodes((int) $site['id']),
+            'types'       => Topology::TYPES,
+            'manualIcons' => Topology::MANUAL_ICONS,
+        ]);
+    }
+
     /** Verbinding zelf instellen (vast) */
     public function save($id)
     {

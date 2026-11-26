@@ -13,6 +13,7 @@ foreach (device_types() as $k => $t) {
         <div class="small text-muted"><?= esc(Network::platformLabel($site['platform'])) ?><?= $loc ? ' · <a href="' . site_url('klanten/' . $loc['customer_id']) . '">' . esc($loc['customer_name']) . '</a> · ' . esc($loc['name']) : '' ?></div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+        <a href="<?= site_url('netwerk/topologie/' . $site['id'] . '/pdf') ?>" target="_blank" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
         <select class="form-select form-select-sm" style="max-width: 220px" onchange="if (this.value) location.href = this.value">
             <option value="">Andere site…</option>
             <?php foreach ($others as $o) : ?><option value="<?= site_url('netwerk/topologie/' . $o['id']) ?>" <?= (int) $o['id'] === (int) $site['id'] ? 'selected' : '' ?>><?= esc(Network::platformLabel($o['platform']) . ' · ' . $o['name']) ?></option><?php endforeach ?>
