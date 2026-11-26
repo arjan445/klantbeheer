@@ -82,7 +82,8 @@
         <div class="col-6 col-md-3"><label class="form-label small mb-1">Tot</label><input type="time" name="alerts_sendUntil" class="form-control" value="<?= esc($alerts['sendUntil'], 'attr') ?>"></div>
         <div class="col-6 col-md-3"><label class="form-label small mb-1">'s Nachts vanaf</label><input type="time" name="alerts_nightFrom" class="form-control" value="<?= esc($alerts['nightFrom'], 'attr') ?>"></div>
         <div class="col-6 col-md-3"><label class="form-label small mb-1">dan pas na (min)</label><input type="number" min="5" max="1440" name="alerts_nightDelay" class="form-control" value="<?= (int) $alerts['nightDelay'] ?>"></div>
-        <div class="col-12 form-text mt-1">Buiten deze tijden krijgt de klant niets; speelt de storing bij het begin van de verzendtijd nog, dan gaat de mail alsnog. Overdag ben jij bereikbaar.</div>
+        <div class="col-12 form-text mt-1">Doordeweeks krijgt de klant buiten deze tijden niets; speelt de storing bij het begin van de verzendtijd nog, dan gaat de mail alsnog. Overdag ben jij bereikbaar. De nachtregel geldt ook in het weekend.</div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="alerts_weekend" value="1" id="al-wk" <?= $alerts['weekend'] ? 'checked' : '' ?>><label class="form-check-label" for="al-wk">In het weekend (zaterdag en zondag) de hele dag mailen</label></div></div>
         <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="alerts_ownWindow" value="1" id="al-own" <?= $alerts['ownWindow'] ? 'checked' : '' ?>><label class="form-check-label" for="al-own">Deze tijden ook voor mijn eigen mails</label></div></div>
     </div>
     <label class="form-label small mb-1 mt-3">Welke klanten krijgen een mail?</label>
