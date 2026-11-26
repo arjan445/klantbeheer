@@ -44,7 +44,7 @@
     <?php $nd = $network; $loc = current_url(); ?>
     <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">
         <span><?= \App\Libraries\Network::dot($nd) ?> <?= esc(\App\Libraries\Network::platformLabel($nd['platform'])) ?></span>
-        <span class="small fw-normal text-muted"><?= esc($nd['nsite_name'] ?? '') ?></span>
+        <span class="small fw-normal"><?php if ($nd['network_site_id']) : ?><a href="<?= site_url('netwerk/topologie/' . $nd['network_site_id']) ?>" class="text-muted"><i class="bi bi-diagram-3"></i> <?= esc($nd['nsite_name'] ?? 'Topologie') ?></a><?php endif ?></span>
     </div><div class="card-body">
         <dl class="row mb-0 small">
             <dt class="col-5">Status</dt><dd class="col-7">

@@ -58,6 +58,7 @@ $locSelect = static function (string $name, ?int $current, array $locations, ?in
                     <div class="small text-muted text-truncate"><?= esc(implode(' · ', array_filter([$s['host_name'] && $s['host_name'] !== $s['name'] ? 'console ' . $s['host_name'] : null, $s['platform'] === 'uisp' ? $s['description'] : null]))) ?></div>
                 </div>
                 <div class="text-end small text-nowrap">
+                    <a href="<?= site_url('netwerk/topologie/' . $s['id']) ?>" class="btn btn-sm btn-outline-secondary mb-1"><i class="bi bi-diagram-3"></i> Topologie</a><br>
                     <?= (int) $s['device_count'] ?> apparaten
                     <?php if ($s['offline_count']) : ?><div class="text-danger"><?= (int) $s['offline_count'] ?> offline</div><?php endif ?>
                 </div>

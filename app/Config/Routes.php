@@ -10,6 +10,7 @@ use App\Controllers\Hours;
 use App\Controllers\Networks;
 use App\Controllers\PurchaseInvoices;
 use App\Controllers\Scan;
+use App\Controllers\Topologies;
 use App\Controllers\Domains;
 use App\Controllers\Products;
 use App\Controllers\Quotes;
@@ -144,6 +145,11 @@ $routes->group('netwerk', ['filter' => 'can:vault.view'], static function ($rout
     $routes->post('apparaat/(:num)/bewaken', [Networks::class, 'monitor/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/ontkoppelen', [Networks::class, 'unlink/$1'], ['filter' => 'can:vault.manage']);
     $routes->post('apparaat/(:num)/terugzetten', [Networks::class, 'restore/$1'], ['filter' => 'can:vault.manage']);
+    $routes->get('topologie/(:num)', [Topologies::class, 'show/$1']);
+    $routes->post('topologie/(:num)/verbinding', [Topologies::class, 'save/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/automatisch', [Topologies::class, 'auto/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/toevoegen', [Topologies::class, 'add/$1'], ['filter' => 'can:vault.manage']);
+    $routes->post('topologie/(:num)/ophalen', [Topologies::class, 'refresh/$1'], ['filter' => 'can:vault.manage']);
 });
 
 // Doosscan (mobiel): serienummers/MAC scannen en aan apparaten koppelen
