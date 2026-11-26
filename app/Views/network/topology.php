@@ -10,7 +10,8 @@ foreach (device_types() as $k => $t) {
     <div class="min-w-0">
         <a href="<?= site_url('netwerk?tab=sites') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Netwerk</a>
         <h3 class="mb-0 text-truncate"><i class="bi bi-diagram-3"></i> <?= esc($site['name']) ?></h3>
-        <div class="small text-muted"><?= esc(Network::platformLabel($site['platform'])) ?><?= $loc ? ' · <a href="' . site_url('klanten/' . $loc['customer_id']) . '">' . esc($loc['customer_name']) . '</a> · ' . esc($loc['name']) : '' ?></div>
+        <div class="small text-muted"><?= esc(Network::platformLabel($site['platform'])) ?><?= $loc ? ' · <a href="' . site_url('klanten/' . $loc['customer_id']) . '">' . esc($loc['customer_name']) . '</a> · ' . esc($loc['name']) : '' ?><?= ! empty($site['fabric']) ? ' · fabric ' . esc($site['fabric']) : '' ?></div>
+        <?php if (! empty($site['vpn'])) : ?><div class="mt-1"><?= view('network/_vpn', ['site' => $site, 'full' => true]) ?></div><?php endif ?>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a href="<?= site_url('netwerk/topologie/' . $site['id'] . '/pdf') ?>" target="_blank" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
@@ -156,6 +157,8 @@ foreach (device_types() as $k => $t) {
     const TYPES = <?= json_encode($types, JSON_UNESCAPED_UNICODE) ?>;
     const MANAGE = <?= $manage ? 'true' : 'false' ?>;
     let nodes = <?= json_encode($nodes, JSON_UNESCAPED_UNICODE) ?>;
+    // SD-WAN: alleen een label op de gateway, niet de hele mesh
+    const VPN = <?= json_encode(array_map(static fn ($v) => ['state' => $v['state'], 'role' => $v['role'], 'up' => $v['up'], 'total' => $v['total'], 'name' => $v['name']], Network::vpn($site)), JSON_UNESCAPED_UNICODE) ?>;
 
     const meta = document.querySelector('meta[name="csrf-hash"]');
     const csrfName = document.querySelector('meta[name="csrf-name"]').content;
@@ -241,6 +244,17 @@ foreach (device_types() as $k => $t) {
             const t3 = el('text', { x: 44, y: 55, class: 'nsub mono' }, b); t3.textContent = cut(n.ip || n.mac || '', 22);
             const tag = n.kind === 'manual' ? 'EIGEN' : n.kind === 'vault' ? 'KLUIS' : (n.foreign ? n.platform.toUpperCase() : '');
             if (tag) { const t4 = el('text', { x: W - 8, y: H - 6, class: 'nplat', 'text-anchor': 'end' }, b); t4.textContent = tag; }
+            if (VPN.length && n.type === 'router' && !n.foreign && (!n.parent || !pos[n.parent])) {
+                const v = VPN[0], st = VPN.some(x => x.state === 'down' || x.state === 'error') ? 'down' : VPN.some(x => x.state === 'partial') ? 'partial' : v.state;
+                const pill = el('g', { class: 'vpn-pill vp-' + st }, b);
+                const pr = el('rect', { height: 18, rx: 9 }, pill);
+                const pt = el('text', { y: 13, 'text-anchor': 'middle' }, pill);
+                pt.textContent = '🔒 SD-WAN ' + (v.role === 'hub' ? 'hub' : 'spoke') + (v.total ? ' ' + v.up + '/' + v.total : '');
+                const pw = Math.min(W, Math.max(90, (pt.getComputedTextLength() || 100) + 18));
+                pr.setAttribute('width', pw); pt.setAttribute('x', pw / 2);
+                pill.setAttribute('transform', `translate(${(W - pw) / 2},-22)`);
+                const ptt = el('title', {}, pill); ptt.textContent = VPN.map(x => 'SD-WAN ' + x.name + ' (' + x.role + ')' + (x.total ? ': ' + x.up + '/' + x.total + ' tunnels verbonden' : '')).join('\n');
+            }
             const tt = el('title', {}, b); tt.textContent = n.name + (n.status === 'offline' ? ' (offline)' : '');
             b.addEventListener('click', () => { if (!moved) openEditor(n.id); });
             b.addEventListener('keydown', e => { if (e.key === 'Enter') openEditor(n.id); });
@@ -256,12 +270,15 @@ foreach (device_types() as $k => $t) {
     }
     function fit() {
         const r = svg.getBoundingClientRect(), pad = 30;
-        const w = bounds.w + pad * 2, h = bounds.h + pad * 2;
+        // Boven extra ruimte voor het SD-WAN-label en (op de telefoon) de sleep-hint
+        const hintPx = MANAGE && r.width < 576 ? 34 : 0; // schermpixels
+        const top = pad + (VPN.length ? 26 : 0);
+        const w = bounds.w + pad * 2, h = bounds.h + pad + top + hintPx;
         const ratio = r.width / Math.max(r.height, 1);
         // Niet kleiner dan leesbaar: liever scrollen/slepen dan piepkleine tekst
         const minScale = 0.55, scale = Math.max(minScale, Math.min(r.width / w, r.height / h, 1.2));
         view.w = r.width / scale; view.h = r.height / scale;
-        view.x = -pad + (w - view.w) / 2; view.y = -pad;
+        view.x = -pad + (w - view.w) / 2; view.y = -top - hintPx / scale;
         if (view.w < w && scale === minScale) view.x = -pad; // te breed: links beginnen
         apply();
     }

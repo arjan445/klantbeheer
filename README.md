@@ -89,6 +89,7 @@ Op hosting zonder `php spark` doe je het onderhoud in **Beheer › Onderhoud**:
 Open **Beheer › Netwerk** en vul in:
 
 - **UniFi**: een API-sleutel van *unifi.ui.com › API* (Site Manager).
+  - **Fabrics**: een sleutel ziet alleen de sites van één Fabric. Zit een klant in een eigen Fabric, maak dan binnen die Fabric (als eigenaar van de consoles) een sleutel aan en vul die in bij *Beheer › Netwerk › Fabrics*. De sites komen dan mee, met een label als er een **SD-WAN** (Site Magic) is: hub/spoke, hoeveel tunnels verbonden zijn en met welke sites. Niet de hele mesh.
 - **UISP**: het adres van je controller en een API-token (*Settings › Users › API tokens*, alleen-lezen is genoeg).
 
 Sleutels worden versleuteld opgeslagen. Met *Opslaan & verbinding testen* zie je meteen hoeveel sites en apparaten er zijn. Zet daarna de cronjob aan:

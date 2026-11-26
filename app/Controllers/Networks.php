@@ -225,10 +225,43 @@ class Networks extends BaseController
     // ------------------------------------------------------------------
     // Instellingen
 
+    /** Extra UniFi-sleutels, één per Fabric (sleutel versleuteld) */
+    private function saveFabricKeys(): void
+    {
+        $old  = array_column(Unifi::fabricKeys(), null, 'id');
+        $ids  = (array) $this->request->getPost('fabric_id');
+        $lbls = (array) $this->request->getPost('fabric_label');
+        $keys = (array) $this->request->getPost('fabric_key');
+        $del  = array_map('strval', (array) $this->request->getPost('fabric_del'));
+        $out  = [];
+        foreach ($ids as $i => $id) {
+            $id = (string) $id;
+            if (! isset($old[$id]) || in_array($id, $del, true)) {
+                continue;
+            }
+            $f          = $old[$id];
+            $f['label'] = mb_substr(trim((string) ($lbls[$i] ?? '')), 0, 100) ?: ($f['label'] ?? 'Fabric');
+            if (trim((string) ($keys[$i] ?? '')) !== '') {
+                $f['key'] = Network::encryptValue(trim((string) $keys[$i]));
+            }
+            $out[] = $f;
+        }
+        $newKey = trim((string) $this->request->getPost('fabric_new_key'));
+        if ($newKey !== '') {
+            $out[] = [
+                'id'    => bin2hex(random_bytes(6)),
+                'label' => mb_substr(trim((string) $this->request->getPost('fabric_new_label')), 0, 100) ?: 'Fabric ' . (count($out) + 1),
+                'key'   => Network::encryptValue($newKey),
+            ];
+        }
+        \App\Libraries\Setting::set('unifi.fabricKeys', $out === [] ? null : json_encode($out));
+    }
+
     public function settings()
     {
         if ($this->request->is('post')) {
             Network::saveSecretIf('unifi.apiKey', $this->request->getPost('unifi_apiKey'), (bool) $this->request->getPost('unifi_clear'));
+            $this->saveFabricKeys();
             Network::saveSecretIf('uisp.token', $this->request->getPost('uisp_token'), (bool) $this->request->getPost('uisp_clear'));
             \App\Libraries\Setting::set('uisp.url', mb_substr(trim((string) $this->request->getPost('uisp_url')), 0, 255));
             // Storingsmeldingen
@@ -297,7 +330,8 @@ class Networks extends BaseController
             'alertCustomers' => model(\App\Models\CustomerModel::class)->select('customers.id, customers.name, customers.email, customers.alert_mail')
                 ->join('sites', 'sites.customer_id = customers.id')->join('network_sites', 'network_sites.site_id = sites.id')
                 ->where('customers.active', 1)->groupBy('customers.id, customers.name, customers.email, customers.alert_mail')->orderBy('customers.name')->findAll(),
-            'unifiSet' => (new Unifi())->configured(),
+            'unifiSet' => Network::secret('unifi.apiKey') !== '',
+            'fabrics'  => array_map(static fn ($f) => ['id' => $f['id'], 'label' => $f['label'] ?? ''], Unifi::fabricKeys()),
             'uispSet'  => Network::secret('uisp.token') !== '',
             'uispUrl'  => Network::setting('uisp.url'),
             'ctrlUrl'  => Network::setting('unifi.controllerUrl'),
