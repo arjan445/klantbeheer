@@ -174,6 +174,21 @@ class Network
                 Setting::set('network.lastSync', date('Y-m-d H:i:s'));
             }
             Setting::set('network.lastResult', json_encode(['at' => date('Y-m-d H:i:s'), 'results' => $results], JSON_UNESCAPED_UNICODE));
+
+            // Storingsmails (alleen als ze aan staan en alleen na een geslaagde sync)
+            if ($okAll !== []) {
+                try {
+                    $sent = Alerts::run();
+                    if ($sent !== []) {
+                        Setting::set('alerts.last', json_encode(['at' => date('Y-m-d H:i:s'), 'notes' => $sent], JSON_UNESCAPED_UNICODE));
+                        foreach ($sent as $n) {
+                            log_message('info', 'Storingsmail: ' . $n);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    log_message('error', 'Storingsmails: ' . $e->getMessage());
+                }
+            }
         }
 
         return $results;
