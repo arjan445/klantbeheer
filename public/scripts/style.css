@@ -218,3 +218,13 @@ body:has(.scan-bar:not(.d-none)) { padding-bottom: 90px; }
 .topo-addtabs { flex-wrap: nowrap; overflow-x: auto; gap: .25rem; }
 .topo-addtabs .nav-link { padding: .3rem .7rem; font-size: .85rem; white-space: nowrap; }
 .topo-addtabs .nav-link.active { background: var(--kb-blue); }
+
+.wire { fill: none; stroke: var(--kb-blue); stroke-width: 2.5; stroke-dasharray: 6 4; pointer-events: none; }
+.node.wire-from rect { stroke: var(--kb-blue); stroke-width: 2.5; }
+.node.drop-ok rect { stroke: #20a35a; stroke-width: 3; fill: #effaf3; }
+.node.drop-bad rect { stroke: #dc3545; stroke-width: 3; fill: #fff1f2; }
+#topo g.node { cursor: crosshair; }
+.topo-hint { position: absolute; left: .6rem; top: .5rem; font-size: .75rem; color: #6c757d; background: rgba(255,255,255,.85); padding: .15rem .5rem; border-radius: 1rem; pointer-events: none; }
+.topo-toast { position: absolute; left: 50%; bottom: .8rem; transform: translate(-50%, 20px); opacity: 0; transition: .2s; background: #1d2433; color: #fff; font-size: .85rem; padding: .45rem .8rem; border-radius: .5rem; pointer-events: none; max-width: 90%; text-align: center; }
+.topo-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.topo-toast.bad { background: #b42335; }

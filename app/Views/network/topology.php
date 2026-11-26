@@ -31,6 +31,8 @@ foreach (device_types() as $k => $t) {
         <button type="button" class="btn btn-light btn-sm" id="topo-fit" title="Passend maken"><i class="bi bi-arrows-fullscreen"></i></button>
     </div>
     <div class="topo-empty d-none" id="topo-empty">Nog geen apparaten in deze site.</div>
+    <div class="topo-toast" id="topo-toast" role="status"></div>
+    <?php if ($manage) : ?><div class="topo-hint"><i class="bi bi-bezier2"></i> Sleep van een apparaat naar het apparaat waar het aan hangt</div><?php endif ?>
 </div>
 
 <div class="topo-legend small text-muted mt-2">
@@ -209,7 +211,7 @@ foreach (device_types() as $k => $t) {
         if (parent) parent.appendChild(e);
         return e;
     }
-    function draw() {
+    function draw(refit = true) {
         layout();
         svg.innerHTML = '';
         document.getElementById('topo-empty').classList.toggle('d-none', nodes.length > 0);
@@ -242,7 +244,7 @@ foreach (device_types() as $k => $t) {
             b.addEventListener('click', () => { if (!moved) openEditor(n.id); });
             b.addEventListener('keydown', e => { if (e.key === 'Enter') openEditor(n.id); });
         });
-        fit();
+        if (refit) fit(); else apply();
     }
 
     // ---------- Pan & zoom ----------
@@ -271,11 +273,43 @@ foreach (device_types() as $k => $t) {
         apply();
     }
     const pts = new Map(); let last = null, pinch = null;
-    svg.addEventListener('pointerdown', e => { pts.set(e.pointerId, e); moved = false; last = { x: e.clientX, y: e.clientY }; });
+    // Draadje trekken: begin op een apparaat en sleep naar het apparaat waar het aan hangt.
+    // Slepen op de lege achtergrond verschuift de tekening.
+    let wire = null; // { from, line, target }
+    const svgPoint = (cx, cy) => { const r = svg.getBoundingClientRect(); return { x: view.x + (cx - r.left) / r.width * view.w, y: view.y + (cy - r.top) / r.height * view.h }; };
+    const nodeAt = (cx, cy) => { const el = document.elementFromPoint(cx, cy); const g = el && el.closest ? el.closest('g.node') : null; return g ? +g.dataset.id : null; };
+    function endWire() {
+        if (!wire) return;
+        wire.line?.remove();
+        svg.querySelectorAll('.drop-ok, .drop-bad, .wire-from').forEach(x => x.classList.remove('drop-ok', 'drop-bad', 'wire-from'));
+        wire = null;
+    }
+    svg.addEventListener('pointerdown', e => {
+        pts.set(e.pointerId, e); moved = false; last = { x: e.clientX, y: e.clientY };
+        const id = MANAGE && pts.size === 1 ? nodeAt(e.clientX, e.clientY) : null;
+        wire = id ? { from: id, line: null, target: null } : null;
+    });
     window.addEventListener('pointermove', e => {
         if (!pts.has(e.pointerId)) return;
         pts.set(e.pointerId, e);
         const r = svg.getBoundingClientRect();
+        if (pts.size === 2) endWire();
+        if (wire) {
+            if (Math.abs(e.clientX - last.x) + Math.abs(e.clientY - last.y) < 6 && !wire.line) return;
+            moved = true;
+            const p = pos[wire.from]; if (!p) return;
+            if (!wire.line) {
+                wire.line = el('path', { class: 'wire' }, svg);
+                svg.querySelector('g.node[data-id="' + wire.from + '"]')?.classList.add('wire-from');
+            }
+            const q = svgPoint(e.clientX, e.clientY), x1 = p.x + W / 2, y1 = p.y;
+            wire.line.setAttribute('d', `M${x1},${y1} C${x1},${(y1 + q.y) / 2} ${q.x},${(y1 + q.y) / 2} ${q.x},${q.y}`);
+            const t = nodeAt(e.clientX, e.clientY);
+            svg.querySelectorAll('.drop-ok, .drop-bad').forEach(x => x.classList.remove('drop-ok', 'drop-bad'));
+            wire.target = t && t !== wire.from ? t : null;
+            if (wire.target) svg.querySelector('g.node[data-id="' + wire.target + '"]')?.classList.add(descendants(wire.from).has(wire.target) ? 'drop-bad' : 'drop-ok');
+            return;
+        }
         if (pts.size === 2) {
             const [a, b] = [...pts.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
             if (pinch) zoom(d / pinch, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
@@ -285,7 +319,30 @@ foreach (device_types() as $k => $t) {
         if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
         if (moved) { view.x -= dx * view.w / r.width; view.y -= dy * view.h / r.height; apply(); last = { x: e.clientX, y: e.clientY }; }
     });
-    const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; setTimeout(() => { if (!pts.size) moved = false; }, 0); };
+    const up = e => {
+        if (wire && pts.has(e.pointerId)) {
+            const w = wire; endWire();
+            if (w.line && w.target) connect(w.from, w.target);
+        }
+        pts.delete(e.pointerId); if (pts.size < 2) pinch = null; setTimeout(() => { if (!pts.size) moved = false; }, 0);
+    };
+    async function connect(childId, parentId) {
+        const n = nodes.find(x => x.id === childId), p = nodes.find(x => x.id === parentId);
+        if (!n || !p) return;
+        if (descendants(childId).has(parentId)) { toast(p.name + ' hangt zelf al (via via) aan ' + n.name + '.', true); return; }
+        if (n.parent === parentId) { openEditor(childId, true); return; }
+        const type = n.link && n.link !== 'wired' ? n.link : (n.platform === 'uisp' && p.platform === 'uisp' ? 'ptp' : 'wired');
+        const res = await post('/verbinding', { child_id: childId, parent_id: parentId, parent_port: '', local_port: '', link_type: type, note: n.note || '' });
+        if (res.error) { toast(res.error, true); return; }
+        nodes = res.nodes; draw(false);
+        toast(n.name + ' hangt nu aan ' + p.name + '. Vul de poort in.');
+        openEditor(childId, true);
+    }
+    function toast(msg, bad) {
+        const t = document.getElementById('topo-toast');
+        t.textContent = msg; t.className = 'topo-toast show' + (bad ? ' bad' : '');
+        clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3500);
+    }
     window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
     svg.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.15 : 0.87, e.clientX, e.clientY); }, { passive: false });
     document.querySelectorAll('[data-zoom]').forEach(b => b.addEventListener('click', () => zoom(+b.dataset.zoom)));
@@ -300,7 +357,7 @@ foreach (device_types() as $k => $t) {
         while (grew) { grew = false; nodes.forEach(n => { if (n.parent && out.has(n.parent) && !out.has(n.id)) { out.add(n.id); grew = true; } }); }
         return out;
     }
-    function openEditor(id) {
+    function openEditor(id, focusPort) {
         const n = nodes.find(x => x.id === id); if (!n) return;
         $('ed-title').textContent = n.name;
         $('ed-sub').textContent = [n.model, n.ip, n.mac, n.status === 'offline' ? 'offline' : ''].filter(Boolean).join(' · ');
@@ -327,6 +384,7 @@ foreach (device_types() as $k => $t) {
         $('ed-remove').querySelector('span').textContent = n.kind === 'vault' ? 'Uit topologie halen' : 'Verwijderen';
         $('ed-err').textContent = '';
         bootstrap.Offcanvas.getOrCreateInstance(sheet).show();
+        if (focusPort) sheet.addEventListener('shown.bs.offcanvas', () => $('ed-port').focus(), { once: true });
     }
     if (MANAGE) {
         $('ed-form').addEventListener('submit', async e => {
