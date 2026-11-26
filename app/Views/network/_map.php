@@ -55,9 +55,11 @@ $c    = $map['counts'];
     const touch = window.matchMedia('(pointer: coarse)').matches;
 
     const map = L.map('cmap', { scrollWheelZoom: FULL, zoomControl: true, attributionControl: true, tap: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19, subdomains: 'abcd',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    // OpenStreetMap: geen sleutel nodig (CARTO vraagt er sinds kort wel een).
+    // OSM wil weten van welke site de aanvraag komt: zonder herkomst geeft het 403.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers'
     }).addTo(map);
     map.setView([51.6, 5.6], 8);
 
