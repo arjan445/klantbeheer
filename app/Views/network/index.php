@@ -55,7 +55,8 @@ $locSelect = static function (string $name, ?int $current, array $locations, ?in
             <div class="d-flex justify-content-between align-items-start gap-2">
                 <div class="min-w-0">
                     <div class="fw-semibold text-truncate"><?= $platformBadge($s['platform']) ?> <?= esc($s['name']) ?></div>
-                    <div class="small text-muted text-truncate"><?= esc(implode(' · ', array_filter([$s['host_name'] && $s['host_name'] !== $s['name'] ? 'console ' . $s['host_name'] : null, $s['platform'] === 'uisp' ? $s['description'] : null]))) ?></div>
+                    <div class="small text-muted text-truncate"><?= esc(implode(' · ', array_filter([$s['fabric'] ?? null ? 'fabric ' . $s['fabric'] : null, $s['host_name'] && $s['host_name'] !== $s['name'] ? 'console ' . $s['host_name'] : null, $s['platform'] === 'uisp' ? $s['description'] : null]))) ?></div>
+                    <?php if (! empty($s['vpn'])) : ?><div class="mt-1"><?= view('network/_vpn', ['site' => $s]) ?></div><?php endif ?>
                 </div>
                 <div class="text-end small text-nowrap">
                     <a href="<?= site_url('netwerk/topologie/' . $s['id']) ?>" class="btn btn-sm btn-outline-secondary mb-1"><i class="bi bi-diagram-3"></i> Topologie</a><br>

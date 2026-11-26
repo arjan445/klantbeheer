@@ -228,3 +228,15 @@ body:has(.scan-bar:not(.d-none)) { padding-bottom: 90px; }
 .topo-toast { position: absolute; left: 50%; bottom: .8rem; transform: translate(-50%, 20px); opacity: 0; transition: .2s; background: #1d2433; color: #fff; font-size: .85rem; padding: .45rem .8rem; border-radius: .5rem; pointer-events: none; max-width: 90%; text-align: center; }
 .topo-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .topo-toast.bad { background: #b42335; }
+
+/* SD-WAN (UniFi Site Magic): compact label, niet de hele mesh */
+.vpn-badge { display: inline-flex; align-items: center; gap: 4px; font-size: .75rem; line-height: 1; padding: 4px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.vpn-success { color: #5b21b6; background: #f3effe; border-color: #c4b5fd; }
+.vpn-warning { color: #8a5300; background: #fff6e0; border-color: #f5c56b; }
+.vpn-danger { color: #b02a37; background: #fdecee; border-color: #f1aeb5; }
+.vpn-secondary { color: #555c6b; background: #f1f2f5; border-color: #d3d6dd; }
+.vpn-pill rect { fill: #f3effe; stroke: #7c3aed; stroke-width: 1; }
+.vpn-pill text { font-size: 10.5px; font-weight: 600; fill: #5b21b6; }
+.vpn-pill.vp-partial rect { fill: #fff6e0; stroke: #e0a020; } .vpn-pill.vp-partial text { fill: #8a5300; }
+.vpn-pill.vp-down rect, .vpn-pill.vp-error rect { fill: #fdecee; stroke: #dc3545; } .vpn-pill.vp-down text, .vpn-pill.vp-error text { fill: #b02a37; }
+.vpn-pill.vp-unknown rect, .vpn-pill.vp-pending rect { fill: #f1f2f5; stroke: #9aa0ad; } .vpn-pill.vp-unknown text, .vpn-pill.vp-pending text { fill: #555c6b; }

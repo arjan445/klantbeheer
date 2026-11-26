@@ -95,6 +95,7 @@ $title = 'Netwerktopologie ' . ($loc ? $loc['customer_name'] : $site['name']);
             <div class="meta">
                 <?php if ($loc) : ?><strong><?= esc($loc['name']) ?></strong><?php $addr = trim(implode(' ', array_filter([$loc['address'] ?? null, $loc['zipcode'] ?? null, $loc['city'] ?? null]))); ?><?= $addr !== '' ? ' · ' . esc($addr) : '' ?><br><?php endif ?>
                 <?= esc(Network::platformLabel($site['platform'])) ?>-site <strong><?= esc($site['name']) ?></strong> · <?= count($nodes) ?> apparaten
+                <?php foreach (Network::vpn($site) as $v) : ?><br>SD-WAN <strong><?= esc($v['name']) ?></strong> (<?= $v['role'] ?>, <?= esc(Network::vpnState($v['state'])[1]) ?><?= $v['total'] ? ', ' . $v['up'] . '/' . $v['total'] . ' tunnels' : '' ?>)<?= $v['peers'] ? ' met ' . esc(implode(', ', array_column($v['peers'], 'name'))) : '' ?><?php endforeach ?>
             </div>
         </div>
         <div class="right">

@@ -32,10 +32,64 @@ class Unifi extends Connector
     private string $apiKey;
     private string $base;
 
+    /** @var list<array{id:string,label:string,key:string}> */
+    private array $keys;
+
     public function __construct(?string $apiKey = null)
     {
-        $this->apiKey = (string) ($apiKey ?? Network::secret('unifi.apiKey'));
+        $this->keys   = $apiKey !== null ? [['id' => 'main', 'label' => '', 'key' => $apiKey]] : self::keys();
+        $this->apiKey = (string) ($this->keys[0]['key'] ?? '');
         $this->base   = rtrim((string) env('unifi.baseUrl', 'https://api.ui.com'), '/');
+    }
+
+    /**
+     * Alle API-sleutels. Een Site Manager-sleutel ziet alleen de consoles van één
+     * Fabric (of je eigen account): sites in een Fabric van een klant komen dus pas
+     * binnen met een sleutel die binnen die Fabric is gemaakt.
+     *
+     * @return list<array{id:string,label:string,key:string}>
+     */
+    public static function keys(): array
+    {
+        $out  = [];
+        $main = Network::secret('unifi.apiKey');
+        if ($main !== '') {
+            $out[] = ['id' => 'main', 'label' => '', 'key' => $main];
+        }
+        foreach (self::fabricKeys() as $f) {
+            $key = Network::decryptValue((string) ($f['key'] ?? ''));
+            if ($key !== '') {
+                $out[] = ['id' => (string) $f['id'], 'label' => (string) ($f['label'] ?? ''), 'key' => $key];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Extra sleutels zoals opgeslagen (sleutel nog versleuteld).
+     *
+     * @return list<array{id:string,label:string,key:string}>
+     */
+    public static function fabricKeys(): array
+    {
+        $list = json_decode(Network::setting('unifi.fabricKeys'), true);
+
+        return is_array($list) ? array_values(array_filter($list, static fn ($f) => is_array($f) && ! empty($f['id']))) : [];
+    }
+
+    /** De sleutel waarmee deze console binnenkwam (voor de Cloud Connector) */
+    private function useKeyFor(string $hostId): void
+    {
+        $id = Network::setting('unifi.hostKey.' . $hostId) ?: 'main';
+        foreach ($this->keys as $k) {
+            if ($k['id'] === $id) {
+                $this->apiKey = $k['key'];
+
+                return;
+            }
+        }
+        $this->apiKey = (string) ($this->keys[0]['key'] ?? '');
     }
 
     public function platform(): string
@@ -88,10 +142,182 @@ class Unifi extends Connector
         return $out;
     }
 
+    /**
+     * Alle sleutels na elkaar. Lukt één Fabric niet, dan gaan de andere gewoon door;
+     * 'partial' zorgt dat de apparaten van die Fabric niet als verdwenen gelden.
+     */
     public function fetch(): array
     {
+        $sites   = [];
+        $devices = [];
+        $notes   = [];
+        $partial = false;
+        $errors  = [];
+        $vpnSeen = [];
+        $known   = $this->knownSites();
+
+        foreach ($this->keys as $k) {
+            $this->apiKey = $k['key'];
+            $label        = $k['label'] !== '' ? 'Fabric ' . $k['label'] : 'UniFi-account';
+            try {
+                $one = $this->fetchOne($k, $known);
+            } catch (Throwable $e) {
+                $errors[] = $label . ': ' . $e->getMessage();
+                $partial  = true;
+                continue;
+            }
+            // Bij welke sleutel hoort welke console (voor de Cloud Connector)
+            foreach (array_unique(array_filter(array_column($one['sites'], 'host_id'))) as $hostId) {
+                if (Network::setting('unifi.hostKey.' . $hostId) !== $k['id']) {
+                    \App\Libraries\Setting::set('unifi.hostKey.' . $hostId, $k['id']);
+                }
+            }
+
+            // SD-WAN (Site Magic) van deze Fabric
+            $vpn = null;
+            try {
+                $vpn = $this->sdwan($vpnSeen);
+            } catch (Throwable $e) {
+                log_message('info', 'UniFi SD-WAN (' . $label . '): ' . $e->getMessage());
+            }
+
+            foreach ($one['sites'] as $s) {
+                if (isset($sites[$s['external_id']])) {
+                    continue; // zelfde site via twee sleutels
+                }
+                if ($vpn !== null) {
+                    $s['vpn'] = $vpn[$s['external_id']] ?? [];
+                }
+                $sites[$s['external_id']] = $s;
+            }
+            foreach ($one['devices'] as $d) {
+                $devices[$d['external_id']] ??= $d;
+            }
+            array_push($notes, ...$one['notes']);
+        }
+
+        if ($sites === [] && $devices === [] && $errors !== []) {
+            throw new \RuntimeException(implode(' · ', $errors));
+        }
+        array_push($notes, ...array_map(static fn ($e) => $e . ' (de rest is wel opgehaald)', $errors));
+
+        return ['sites' => array_values($sites), 'devices' => array_values($devices), 'notes' => $notes, 'partial' => $partial];
+    }
+
+    /**
+     * SD-WAN-verbanden (Site Magic) die deze sleutel ziet, per site-ID.
+     * Geen hele mesh: per site alleen naam, rol, tunnels verbonden/totaal en met welke
+     * sites. Een verband dat al via een andere sleutel binnenkwam, wordt overgeslagen.
+     *
+     * @param array<string,bool> $seen
+     * @return array<string,list<array>>  site-ID => verbanden
+     */
+    private function sdwan(array &$seen): array
+    {
+        $out = [];
+        foreach ($this->get('/v1/sd-wan-configs', [], 2, 30)['data'] ?? [] as $cfg) {
+            $id = (string) ($cfg['id'] ?? '');
+            if ($id === '' || isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $name      = self::str($cfg['name'] ?? null, 100) ?? 'SD-WAN';
+
+            $status = null;
+            try {
+                $status = $this->get('/v1/sd-wan-configs/' . rawurlencode($id) . '/status', [], 2, 30)['data'] ?? null;
+            } catch (Throwable $e) {
+                log_message('info', 'UniFi SD-WAN ' . $name . ': status niet op te halen: ' . $e->getMessage());
+            }
+            if (! is_array($status)) {
+                // Zonder status: wie er in zit, uit de instellingen
+                $conf   = $this->get('/v1/sd-wan-configs/' . rawurlencode($id), [], 2, 30)['data'] ?? [];
+                $status = ['hubs' => $conf['hubs'] ?? [], 'spokes' => $conf['spokes'] ?? [], 'unknown' => true];
+            }
+            foreach (self::sdwanSites($id, $name, $status) as $siteId => $entry) {
+                $out[$siteId][] = $entry;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Status van één SD-WAN-verband omzetten naar een regel per site.
+     *
+     * @return array<string,array>
+     */
+    public static function sdwanSites(string $id, string $name, array $status): array
+    {
+        $hubs   = is_array($status['hubs'] ?? null) ? $status['hubs'] : [];
+        $spokes = is_array($status['spokes'] ?? null) ? $status['spokes'] : [];
+        $known  = empty($status['unknown']);
+
+        $hubById = [];
+        foreach ($hubs as $h) {
+            $hubById[(string) ($h['id'] ?? '')] = $h;
+        }
+        // Tunnels per hub en per spoke
+        $tunnels = []; // member-id => [up, total]
+        foreach ($spokes as $sp) {
+            foreach ($sp['connections'] ?? [] as $c) {
+                foreach ($c['tunnels'] ?? [] as $t) {
+                    $up = ($t['status'] ?? '') === 'connected';
+                    foreach ([(string) ($sp['id'] ?? ''), (string) ($c['hubId'] ?? '')] as $m) {
+                        $tunnels[$m][0] = ($tunnels[$m][0] ?? 0) + ($up ? 1 : 0);
+                        $tunnels[$m][1] = ($tunnels[$m][1] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+        $peer = static fn (array $m) => ['site' => (string) ($m['siteId'] ?? ''), 'name' => self::str($m['name'] ?? null, 100)];
+
+        $out = [];
+        foreach ([['hub', $hubs], ['spoke', $spokes]] as [$role, $members]) {
+            foreach ($members as $m) {
+                $siteId = (string) ($m['siteId'] ?? '');
+                if ($siteId === '') {
+                    continue;
+                }
+                if ($role === 'hub') {
+                    $peers = array_map($peer, $spokes);
+                    if (count($hubs) > 1) {
+                        $peers = array_merge(array_map($peer, array_filter($hubs, static fn ($h) => ($h['siteId'] ?? '') !== $siteId)), $peers);
+                    }
+                } else {
+                    $ids   = array_map(static fn ($c) => (string) ($c['hubId'] ?? ''), $m['connections'] ?? []);
+                    $ids   = $ids !== [] ? $ids : array_keys($hubById);
+                    $peers = array_values(array_map($peer, array_filter(array_map(static fn ($i) => $hubById[$i] ?? null, $ids))));
+                }
+                [$up, $total] = $tunnels[(string) ($m['id'] ?? '')] ?? [0, 0];
+                $apply        = (string) ($m['applyStatus'] ?? 'ok');
+                $state        = match (true) {
+                    ! $known                                  => 'unknown',
+                    str_ends_with($apply, 'Failed')           => 'error',
+                    $total === 0                              => in_array($apply, ['creating', 'updating'], true) ? 'pending' : 'unknown',
+                    $up === $total                            => 'ok',
+                    $up === 0                                 => 'down',
+                    default                                   => 'partial',
+                };
+                $out[$siteId] = [
+                    'id'    => $id,
+                    'name'  => $name,
+                    'role'  => $role,
+                    'state' => $state,
+                    'up'    => $up,
+                    'total' => $total,
+                    'peers' => array_slice(array_values(array_filter($peers, static fn ($p) => $p['site'] !== '' && $p['site'] !== $siteId)), 0, 30),
+                    'count' => count($hubs) + count($spokes),
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    private function fetchOne(array $k, array $known): array
+    {
         $notes = [];
-        $known = $this->knownSites();
 
         // Consoles: naam
         $hostNames = [];
@@ -117,6 +343,7 @@ class Unifi extends Connector
                 'description' => self::str($meta['name'] ?? null, 255), // interne naam, bv. "default"
                 'host_id'     => $hostId,
                 'host_name'   => $hostNames[$hostId] ?? null,
+                'fabric'      => $k['label'] !== '' ? $k['label'] : null,
             ];
             $sites[]                = $site;
             $sitesByHost[$hostId][] = $site;
@@ -198,6 +425,7 @@ class Unifi extends Connector
                     'description' => 'Apparaten van deze console zonder bekende site',
                     'host_id'     => $hostId,
                     'host_name'   => $hostNames[$hostId] ?? null,
+                    'fabric'      => $k['label'] !== '' ? $k['label'] : null,
                 ];
             }
         }
@@ -361,6 +589,7 @@ class Unifi extends Connector
      */
     public function legacyDevices(string $hostId, string $siteName): array
     {
+        $this->useKeyFor($hostId);
         $path = '/v1/connector/consoles/' . rawurlencode($hostId) . '/proxy/network/api/s/' . rawurlencode($siteName) . '/stat/device';
 
         return $this->get($path, [], 2, 40)['data'] ?? [];

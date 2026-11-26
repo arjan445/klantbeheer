@@ -43,18 +43,29 @@ class Network
     /** API-sleutels staan versleuteld in app_settings ("enc:…"), of los in .env */
     public static function secret(string $key): string
     {
-        $v = self::setting($key);
+        return self::decryptValue(self::setting($key), $key);
+    }
+
+    /** Een waarde zoals opgeslagen ("enc:…" of los) ontsleutelen */
+    public static function decryptValue(string $v, string $what = 'sleutel'): string
+    {
         if (str_starts_with($v, 'enc:')) {
             try {
                 return Vault::decrypt(substr($v, 4));
             } catch (Throwable $e) {
-                log_message('error', 'Netwerk: ' . $key . ' ontsleutelen mislukt: ' . $e->getMessage());
+                log_message('error', 'Netwerk: ' . $what . ' ontsleutelen mislukt: ' . $e->getMessage());
 
                 return '';
             }
         }
 
         return $v;
+    }
+
+    /** Waarde versleutelen voor opslag (als er een encryption.key is) */
+    public static function encryptValue(string $v): string
+    {
+        return Vault::ready() ? 'enc:' . Vault::encrypt($v) : $v;
     }
 
     public static function saveSecret(string $key, ?string $value): void
@@ -88,6 +99,59 @@ class Network
         }
 
         return false;
+    }
+
+    /**
+     * SD-WAN-verbanden van een netwerksite, met de andere sites opgezocht
+     * (naam en, als we die site kennen, een link naar zijn topologie).
+     *
+     * @return list<array{name:string, role:string, state:string, up:int, total:int, count:int, peers:list<array{name:string, id:?int}>}>
+     */
+    public static function vpn(array $site): array
+    {
+        $list = json_decode((string) ($site['vpn'] ?? ''), true);
+        if (! is_array($list) || $list === []) {
+            return [];
+        }
+        static $byExt = null;
+        if ($byExt === null) {
+            $byExt = [];
+            foreach (model(NetworkSiteModel::class)->select('id, external_id, name')->where('platform', 'unifi')->findAll() as $r) {
+                $byExt[$r['external_id']] = $r;
+            }
+        }
+        $out = [];
+        foreach ($list as $v) {
+            $peers = [];
+            foreach ($v['peers'] ?? [] as $p) {
+                $known   = $byExt[$p['site'] ?? ''] ?? null;
+                $peers[] = ['name' => $known['name'] ?? ($p['name'] ?? 'onbekende site'), 'id' => $known ? (int) $known['id'] : null];
+            }
+            $out[] = [
+                'name'  => (string) ($v['name'] ?? 'SD-WAN'),
+                'role'  => ($v['role'] ?? '') === 'hub' ? 'hub' : 'spoke',
+                'state' => (string) ($v['state'] ?? 'unknown'),
+                'up'    => (int) ($v['up'] ?? 0),
+                'total' => (int) ($v['total'] ?? 0),
+                'count' => (int) ($v['count'] ?? 0),
+                'peers' => $peers,
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Kleur en tekst voor de status van een SD-WAN-verband */
+    public static function vpnState(string $state): array
+    {
+        return match ($state) {
+            'ok'      => ['success', 'verbonden'],
+            'partial' => ['warning', 'deels verbonden'],
+            'down'    => ['danger', 'niet verbonden'],
+            'error'   => ['danger', 'fout bij toepassen'],
+            'pending' => ['secondary', 'wordt opgezet'],
+            default   => ['secondary', 'status onbekend'],
+        };
     }
 
     public static function platformLabel(?string $platform): string
@@ -252,6 +316,13 @@ class Network
                 'host_name'      => $s['host_name'] !== null ? mb_substr($s['host_name'], 0, 150) : null,
                 'last_synced_at' => $now,
             ];
+            if (array_key_exists('fabric', $s)) {
+                $row['fabric'] = $s['fabric'] !== null ? mb_substr($s['fabric'], 0, 100) : null;
+            }
+            if (array_key_exists('vpn', $s)) { // alleen als SD-WAN echt is opgehaald
+                $row['vpn']    = $s['vpn'] ? json_encode($s['vpn'], JSON_UNESCAPED_UNICODE) : null;
+                $row['vpn_at'] = $now;
+            }
             if (isset($existing[$key($ext)])) {
                 $id = (int) $existing[$key($ext)]['id'];
                 $write(static fn () => $sitesM->update($id, $row), 'site ' . $row['name']);
@@ -320,7 +391,8 @@ class Network
 
         // Niet meer in het platform (verwijderd of vergeten): niet meer meetellen.
         // Alleen als het ophalen echt iets opleverde, anders zou alles "weg" zijn.
-        if ($seen !== []) {
+        // Lukte één Fabric niet ('partial'), dan ook niet: die apparaten zijn er nog.
+        if ($seen !== [] && empty($data['partial'])) {
             $goneIds = array_column(array_filter($existing, static fn ($d) => ! isset($seen[$key($d['external_id'])]) && ! $d['gone']), 'id');
             if ($goneIds !== []) {
                 $write(static fn () => $db->table('network_devices')->whereIn('id', $goneIds)

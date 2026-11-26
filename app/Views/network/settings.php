@@ -14,6 +14,22 @@
             <div class="form-text">Maak de sleutel aan op <strong>unifi.ui.com › API</strong> (Site Manager). Je ziet dan alle consoles en sites van je UI-account, met per apparaat MAC, IP, model, firmware en online status. Bij UniFi is het serienummer gelijk aan het MAC-adres.</div>
 
             <hr>
+            <div class="fw-semibold small mb-1">Fabrics <span class="text-muted fw-normal">(sites van klanten in een eigen Fabric)</span></div>
+            <div class="form-text mt-0 mb-2">Een API-sleutel ziet alleen de sites van één Fabric. Zit een klant in een eigen Fabric, open die Fabric dan op unifi.ui.com, maak daar onder <strong>API</strong> een sleutel aan (als eigenaar van die consoles) en vul hem hier in. De sites en het SD-WAN van die Fabric komen dan mee.</div>
+            <?php foreach ($fabrics as $f) : ?>
+            <div class="row g-2 align-items-center mb-2">
+                <input type="hidden" name="fabric_id[]" value="<?= esc($f['id'], 'attr') ?>">
+                <div class="col-5"><input name="fabric_label[]" class="form-control form-control-sm" value="<?= esc($f['label'], 'attr') ?>" placeholder="Naam" aria-label="Naam van de Fabric"></div>
+                <div class="col-5"><input name="fabric_key[]" type="password" class="form-control form-control-sm mono" autocomplete="new-password" placeholder="•••••••• (leeg = ongewijzigd)" aria-label="Nieuwe sleutel"></div>
+                <div class="col-2"><label class="small text-nowrap"><input type="checkbox" class="form-check-input" name="fabric_del[]" value="<?= esc($f['id'], 'attr') ?>"> wis</label></div>
+            </div>
+            <?php endforeach ?>
+            <div class="row g-2">
+                <div class="col-5"><input name="fabric_new_label" class="form-control form-control-sm" placeholder="Naam, bijv. klant" aria-label="Naam nieuwe Fabric"></div>
+                <div class="col-7"><input name="fabric_new_key" type="password" class="form-control form-control-sm mono" autocomplete="new-password" placeholder="API-sleutel van die Fabric" aria-label="API-sleutel nieuwe Fabric"></div>
+            </div>
+
+            <hr>
             <div class="fw-semibold small mb-1">Eigen controller <span class="text-muted fw-normal">(zelf gehost, met meerdere sites)</span></div>
             <div class="form-text mt-0 mb-2">De UniFi-cloud ziet de apparaten van een zelf gehoste controller wel, maar weet niet bij welke site ze horen. Met een lokaal account op die controller worden ze automatisch per site ingedeeld. Maak hiervoor een apart account met alleen-lezen-rechten, zonder tweestapsverificatie.</div>
             <label class="form-label small mb-1">Adres van de controller</label>
