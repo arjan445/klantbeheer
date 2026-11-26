@@ -159,6 +159,8 @@ class Topology
         }
         $existing = array_column($linkM->whereIn('network_device_id', array_values($byKey) ?: [0])->findAll(), null, 'network_device_id');
 
+        // Eerst alles verzamelen, dan pas schrijven: zo kunnen we rondjes weren
+        $plan = [];
         foreach ($links as $key => $u) {
             $childId = $byKey[$keyField === 'mac' ? $key : mb_strtolower($key)] ?? null;
             if ($childId === null) {
@@ -172,6 +174,39 @@ class Topology
             if ($parentId === $childId) {
                 $parentId = null;
             }
+            $plan[$childId] = [$parentId, $u];
+        }
+
+        // Ouders zoals ze na deze ronde zouden zijn: vastgezette blijven, de rest wordt automatisch
+        $parents = [];
+        foreach ($linkM->select('network_device_id, parent_id, locked')->findAll() as $l) {
+            $parents[(int) $l['network_device_id']] = $l['parent_id'] !== null ? (int) $l['parent_id'] : null;
+        }
+        foreach ($plan as $childId => [$parentId]) {
+            $row = $existing[$childId] ?? null;
+            if (! ($row && $row['locked'])) {
+                $parents[$childId] = $parentId;
+            }
+        }
+        // Rondje (A aan B, B aan A, ook via via; komt voor bij mesh en verouderde uplinks)?
+        // Dan krijgt het automatische apparaat in het rondje geen ouder.
+        foreach (array_keys($plan) as $childId) {
+            $row = $existing[$childId] ?? null;
+            if ($row && $row['locked']) {
+                continue;
+            }
+            for ($p = $parents[$childId] ?? null, $i = 0; $p !== null && $i < 1000; $i++) {
+                if ($p === $childId) {
+                    $plan[$childId][0] = null;
+                    $parents[$childId] = null;
+                    log_message('info', 'Topologie: rondje bij netwerkapparaat ' . $childId . ', automatische ouder genegeerd.');
+                    break;
+                }
+                $p = $parents[$p] ?? null;
+            }
+        }
+
+        foreach ($plan as $childId => [$parentId, $u]) {
             $auto = [
                 'auto_parent_id'   => $parentId,
                 'auto_parent_port' => $parentId ? $u['parent_port'] : null,
@@ -234,6 +269,25 @@ class Topology
         return ['views' => $views, 'devices' => $devices, 'links' => $links];
     }
 
+    /** Komt een apparaat via zijn ouders weer bij zichzelf uit? */
+    private static function inCycle(int $id, array $links): bool
+    {
+        $seen = [];
+        for ($p = $links[$id]['parent_id'] ?? null, $i = 0; $p !== null && $i < 1000; $i++) {
+            $p = (int) $p;
+            if ($p === $id) {
+                return true;
+            }
+            if (isset($seen[$p])) {
+                return false; // rondje verderop, niet via dit apparaat
+            }
+            $seen[$p] = true;
+            $p = $links[$p]['parent_id'] ?? null;
+        }
+
+        return false;
+    }
+
     /**
      * Knopen en verbindingen voor één topologie.
      *
@@ -250,6 +304,9 @@ class Topology
             $d = $devices[$id];
             $l = $links[$id] ?? null;
             $p = $l && $l['parent_id'] && ($views[(int) $l['parent_id']] ?? null) === $networkSiteId ? (int) $l['parent_id'] : null;
+            if ($p !== null && self::inCycle((int) $id, $links)) {
+                $p = null; // rondje: dit apparaat bovenaan tekenen, zodat niets verdwijnt
+            }
             $out[] = [
                 'id'          => (int) $id,
                 'name'        => $d['device_name'] ?: ($d['name'] ?: ($d['model'] ?: Network::formatMac($d['mac']))),
@@ -257,7 +314,7 @@ class Topology
                 'ip'          => $d['ip'],
                 'mac'         => Network::formatMac($d['mac']),
                 'platform'    => $d['platform'],
-                'type'        => $d['device_type'] ?: Network::guessType($d),
+                'type'        => $d['platform'] === 'manual' ? ($d['kind'] ?: 'other') : ($d['device_type'] ?: Network::guessType($d)),
                 'status'      => $d['status'],
                 'monitor'     => (bool) $d['monitor'],
                 'device_id'   => $d['device_id'] ? (int) $d['device_id'] : null,
@@ -276,6 +333,7 @@ class Topology
                     'type'        => $l['auto_link_type'],
                 ] : null,
                 'foreign'     => (int) ($d['network_site_id'] ?? 0) !== $networkSiteId, // uit een andere site/platform
+                'kind'        => in_array($d['platform'], ['manual', 'vault'], true) ? $d['platform'] : 'network',
             ];
         }
         usort($out, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
@@ -355,6 +413,149 @@ class Topology
     public static function addToView(int $childId, int $viewSiteId): void
     {
         self::upsert($childId, ['parent_id' => null, 'parent_port' => null, 'local_port' => null, 'locked' => 1, 'view_site_id' => $viewSiteId]);
+    }
+
+    /** Soorten voor zelf toegevoegde apparaten */
+    public const MANUAL_TYPES = [
+        'switch' => 'Switch (unmanaged of ander merk)',
+        'router' => 'Router / modem (provider)',
+        'ap'     => 'Access point (ander merk)',
+        'poe'    => 'PoE-injector / -splitter',
+        'media'  => 'Mediaconverter / glas',
+        'patch'  => 'Patchkast / wandcontactdoos',
+        'server' => 'Server / NAS / pc',
+        'other'  => 'Overig',
+    ];
+
+    /** Icoon per soort (zelf toegevoegd) */
+    public const MANUAL_ICONS = [
+        'switch' => 'diagram-3', 'router' => 'router', 'ap' => 'wifi', 'poe' => 'lightning-charge',
+        'media'  => 'arrow-left-right', 'patch' => 'grid-3x3-gap', 'server' => 'pc-display', 'other' => 'box',
+    ];
+
+    /**
+     * Zelf een apparaat toevoegen dat UniFi/UISP niet kent. Wordt niet bewaakt.
+     *
+     * @return int id van de nieuwe knoop
+     */
+    public static function addManual(int $viewSiteId, string $name, string $type, ?string $model, ?string $ip): int
+    {
+        $name = trim($name);
+        if ($name === '') {
+            $name = self::MANUAL_TYPES[$type] ?? 'Apparaat';
+        }
+        $id = (int) model(NetworkDeviceModel::class)->insert([
+            'platform'        => 'manual',
+            'external_id'     => 'manual:' . bin2hex(random_bytes(8)),
+            'network_site_id' => $viewSiteId,
+            'name'            => mb_substr($name, 0, 150),
+            'model'           => self::cut($model, 100) ?? (self::MANUAL_TYPES[$type] ?? null),
+            'kind'            => isset(self::MANUAL_TYPES[$type]) ? $type : 'other',
+            'ip'              => self::cut($ip, 64),
+            'status'          => 'unknown',
+            'monitor'         => 0,
+            'ignored'         => 1,
+        ]);
+        self::upsert($id, ['parent_id' => null, 'locked' => 1, 'view_site_id' => $viewSiteId]);
+
+        return $id;
+    }
+
+    /** Naam/model/IP van een zelf toegevoegd apparaat aanpassen */
+    public static function updateManual(int $id, ?string $name, ?string $model, ?string $ip): void
+    {
+        $nd = model(NetworkDeviceModel::class)->find($id);
+        if ($nd === null || $nd['platform'] !== 'manual') {
+            throw new RuntimeException('Alleen zelf toegevoegde apparaten kun je hier hernoemen.');
+        }
+        model(NetworkDeviceModel::class)->update($id, [
+            'name'  => self::cut($name, 150) ?? $nd['name'],
+            'model' => self::cut($model, 100),
+            'ip'    => self::cut($ip, 64),
+        ]);
+    }
+
+    /**
+     * Apparaat uit de kluis als knoop (bv. Hikvision-camera of Ajax-hub).
+     *
+     * @return int id van de knoop
+     */
+    public static function addVault(int $viewSiteId, int $deviceId): int
+    {
+        $d = model(\App\Models\DeviceModel::class)->find($deviceId);
+        if ($d === null) {
+            throw new RuntimeException('Apparaat niet gevonden.');
+        }
+        $existing = model(NetworkDeviceModel::class)->where('device_id', $deviceId)->first();
+        if ($existing !== null) {
+            if ($existing['platform'] !== 'vault') {
+                throw new RuntimeException('Dit apparaat staat al in ' . Network::platformLabel($existing['platform']) . ' en dus al in de topologie.');
+            }
+            self::addToView((int) $existing['id'], $viewSiteId);
+
+            return (int) $existing['id'];
+        }
+        $id = (int) model(NetworkDeviceModel::class)->insert([
+            'platform'        => 'vault',
+            'external_id'     => 'device:' . $deviceId,
+            'network_site_id' => $viewSiteId,
+            'device_id'       => $deviceId,
+            'name'            => mb_substr((string) $d['name'], 0, 150),
+            'model'           => $d['model'],
+            'kind'            => $d['type'],
+            'ip'              => $d['ip'],
+            'mac'             => Connector::normalizeMac($d['mac']),
+            'status'          => 'unknown',
+            'monitor'         => 0,
+            'ignored'         => 1,
+        ]);
+        self::upsert($id, ['parent_id' => null, 'locked' => 1, 'view_site_id' => $viewSiteId]);
+
+        return $id;
+    }
+
+    /**
+     * Kluis-apparaten van de klant van deze site die nog niet in de topologie staan.
+     *
+     * @return list<array{id:int, name:string}>
+     */
+    public static function vaultOptions(int $viewSiteId): array
+    {
+        $ns  = model(NetworkSiteModel::class)->find($viewSiteId);
+        $loc = $ns && $ns['site_id'] ? model(\App\Models\SiteModel::class)->find($ns['site_id']) : null;
+        if ($loc === null) {
+            return [];
+        }
+        $taken = array_flip(array_map('intval', array_column(model(NetworkDeviceModel::class)->select('device_id')
+            ->where('device_id IS NOT NULL', null, false)->where('gone', 0)->findAll(), 'device_id')));
+        $out = [];
+        foreach (model(\App\Models\DeviceModel::class)->where('customer_id', $loc['customer_id'])
+            ->whereNotIn('type', ['wifi', 'account'])->orderBy('name')->findAll() as $d) {
+            if (isset($taken[(int) $d['id']])) {
+                continue;
+            }
+            $out[] = ['id' => (int) $d['id'], 'name' => $d['name'] . ($d['model'] ? ' · ' . $d['model'] : '') . ($d['room'] ? ' · ' . $d['room'] : '')];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Zelf toegevoegd apparaat verwijderen, of een kluis-apparaat uit de topologie
+     * halen. Wat eronder hing, komt bovenaan te staan (vast, in deze topologie).
+     */
+    public static function remove(int $id): void
+    {
+        $nd = model(NetworkDeviceModel::class)->find($id);
+        if ($nd === null || ! in_array($nd['platform'], ['manual', 'vault'], true)) {
+            throw new RuntimeException('Alleen zelf toegevoegde apparaten en apparaten uit de kluis kun je hier verwijderen.');
+        }
+        $view = self::graph()['views'][$id] ?? $nd['network_site_id'];
+        foreach (model(NetworkLinkModel::class)->where('parent_id', $id)->findAll() as $child) {
+            model(NetworkLinkModel::class)->update($child['id'], ['parent_id' => null, 'parent_port' => null, 'locked' => 1, 'view_site_id' => $view]);
+        }
+        db_connect()->table('network_links')->where('network_device_id', $id)->delete();
+        model(NetworkDeviceModel::class)->delete($id); // het kluis-apparaat zelf blijft gewoon bestaan
     }
 
     private static function upsert(int $childId, array $set): void

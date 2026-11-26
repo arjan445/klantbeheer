@@ -29,6 +29,9 @@ class Topologies extends BaseController
             'loc'     => $loc,
             'nodes'   => Topology::nodes((int) $site['id']),
             'addable' => user_can('vault.manage') ? Topology::addable((int) $site['id']) : [],
+            'vaultOptions' => user_can('vault.manage') ? Topology::vaultOptions((int) $site['id']) : [],
+            'manualTypes'  => Topology::MANUAL_TYPES,
+            'manualIcons'  => Topology::MANUAL_ICONS,
             'types'   => Topology::TYPES,
             'others'  => $others,
             'manage'  => user_can('vault.manage'),
@@ -79,6 +82,67 @@ class Topologies extends BaseController
         Topology::addToView($child, (int) $site['id']);
 
         return $this->json(['nodes' => Topology::nodes((int) $site['id']), 'added' => $child]);
+    }
+
+    /** Zelf een apparaat toevoegen (unmanaged switch, PoE-injector, modem, ...) */
+    public function addManual($id)
+    {
+        $site = $this->findOr404(NetworkSiteModel::class, $id);
+        $p    = $this->request->getPost(['name', 'type', 'model', 'ip']);
+        try {
+            $new = Topology::addManual((int) $site['id'], (string) $p['name'], (string) $p['type'], $p['model'], $p['ip']);
+        } catch (Throwable $e) {
+            return $this->json(['error' => $e->getMessage()], 422);
+        }
+
+        return $this->json(['nodes' => Topology::nodes((int) $site['id']), 'added' => $new]);
+    }
+
+    /** Apparaat uit de kluis toevoegen (Hikvision, Ajax, ...) */
+    public function addVault($id)
+    {
+        $site = $this->findOr404(NetworkSiteModel::class, $id);
+        try {
+            $new = Topology::addVault((int) $site['id'], (int) $this->request->getPost('device_id'));
+        } catch (Throwable $e) {
+            return $this->json(['error' => $e->getMessage()], 422);
+        }
+
+        return $this->json(['nodes' => Topology::nodes((int) $site['id']), 'added' => $new, 'vault' => Topology::vaultOptions((int) $site['id'])]);
+    }
+
+    /** Zelf toegevoegd apparaat hernoemen */
+    public function rename($id)
+    {
+        $site  = $this->findOr404(NetworkSiteModel::class, $id);
+        $child = (int) $this->request->getPost('child_id');
+        if (! $this->inView($child, (int) $site['id'])) {
+            return $this->json(['error' => 'Apparaat hoort niet bij deze topologie.'], 422);
+        }
+        try {
+            Topology::updateManual($child, $this->request->getPost('name'), $this->request->getPost('model'), $this->request->getPost('ip'));
+        } catch (Throwable $e) {
+            return $this->json(['error' => $e->getMessage()], 422);
+        }
+
+        return $this->json(['nodes' => Topology::nodes((int) $site['id'])]);
+    }
+
+    /** Zelf toegevoegd of kluis-apparaat uit de topologie halen */
+    public function remove($id)
+    {
+        $site  = $this->findOr404(NetworkSiteModel::class, $id);
+        $child = (int) $this->request->getPost('child_id');
+        if (! $this->inView($child, (int) $site['id'])) {
+            return $this->json(['error' => 'Apparaat hoort niet bij deze topologie.'], 422);
+        }
+        try {
+            Topology::remove($child);
+        } catch (Throwable $e) {
+            return $this->json(['error' => $e->getMessage()], 422);
+        }
+
+        return $this->json(['nodes' => Topology::nodes((int) $site['id']), 'vault' => Topology::vaultOptions((int) $site['id'])]);
     }
 
     /** UniFi-verbindingen nu opnieuw ophalen */

@@ -208,3 +208,13 @@ body:has(.scan-bar:not(.d-none)) { padding-bottom: 90px; }
 .topo-types label:has(input:checked) { border-color: var(--kb-blue); background: #eef0fb; box-shadow: 0 0 0 1px var(--kb-blue); }
 .topo-types input { accent-color: var(--kb-blue); }
 @media (max-width: 767.98px) { .topo-wrap { height: 64vh; margin-left: -.5rem; margin-right: -.5rem; border-radius: 0; border-left: 0; border-right: 0; } .topo-sheet input, .topo-sheet select { font-size: 16px; } }
+
+.node.k-manual rect { fill: #fafafa; stroke-dasharray: 5 4; stroke: #aab0bd; }
+.node.k-vault rect { fill: #fffaf0; stroke: #e0c48a; }
+.node.k-manual .nicon { background: #f1f2f5; color: #5b6272; }
+.node.k-vault .nicon { background: #fdf1d9; color: #9a6b00; }
+.node.k-vault .nplat { fill: #9a6b00; }
+.node.k-manual .nplat { fill: #6c757d; }
+.topo-addtabs { flex-wrap: nowrap; overflow-x: auto; gap: .25rem; }
+.topo-addtabs .nav-link { padding: .3rem .7rem; font-size: .85rem; white-space: nowrap; }
+.topo-addtabs .nav-link.active { background: var(--kb-blue); }

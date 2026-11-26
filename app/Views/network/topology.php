@@ -43,19 +43,56 @@ foreach (device_types() as $k => $t) {
 </div>
 
 <?php if ($manage) : ?>
-<div class="card mt-3"><div class="card-body py-2">
-    <div class="d-flex gap-2 align-items-center flex-wrap">
-        <span class="small fw-semibold text-nowrap"><i class="bi bi-plus-circle"></i> Apparaat uit andere site toevoegen</span>
-        <select class="form-select form-select-sm flex-fill" id="add-select" style="min-width: 200px">
-            <option value="">Bijv. een UISP-straalverbinding…</option>
-            <?php foreach ($addable as $group => $list) : ?>
-                <optgroup label="<?= esc($group, 'attr') ?>">
-                    <?php foreach ($list as $a) : ?><option value="<?= $a['id'] ?>"><?= esc($a['name']) ?></option><?php endforeach ?>
-                </optgroup>
-            <?php endforeach ?>
-        </select>
-        <button type="button" class="btn btn-sm btn-primary" id="add-btn">Toevoegen</button>
+<div class="card mt-3"><div class="card-body">
+    <div class="small fw-semibold mb-2"><i class="bi bi-plus-circle"></i> Apparaat toevoegen</div>
+    <ul class="nav nav-pills nav-sm topo-addtabs mb-2" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#add-manual" type="button">Eigen apparaat</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#add-vault" type="button">Uit de kluis</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#add-other" type="button">Uit andere site</button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="add-manual">
+            <div class="small text-muted mb-2">Iets dat UniFi en UISP niet kennen: een unmanaged switch, PoE-injector, mediaconverter, modem van de provider of een switch van een ander merk. Wordt niet bewaakt.</div>
+            <form id="manual-form" class="row g-2" autocomplete="off">
+                <div class="col-12 col-md-4"><select class="form-select form-select-sm" name="type">
+                    <?php foreach ($manualTypes as $k => $label) : ?><option value="<?= $k ?>"><?= esc($label) ?></option><?php endforeach ?>
+                </select></div>
+                <div class="col-7 col-md-3"><input class="form-control form-control-sm" name="name" placeholder="Naam, bijv. Switch meterkast"></div>
+                <div class="col-5 col-md-2"><input class="form-control form-control-sm" name="model" placeholder="Model"></div>
+                <div class="col-7 col-md-2"><input class="form-control form-control-sm" name="ip" placeholder="IP (optioneel)" inputmode="decimal"></div>
+                <div class="col-5 col-md-1"><button class="btn btn-sm btn-primary w-100">Toevoegen</button></div>
+            </form>
+        </div>
+        <div class="tab-pane fade" id="add-vault">
+            <?php if ($loc === null) : ?>
+                <div class="small text-muted">Koppel deze site eerst aan een klantlocatie (<a href="<?= site_url('netwerk?tab=sites') ?>">Sites</a>), dan zie je hier de apparaten uit de kluis van die klant.</div>
+            <?php else : ?>
+                <div class="small text-muted mb-2">Bijvoorbeeld Hikvision-camera's, een recorder of een Ajax-hub van <?= esc($loc['customer_name']) ?>.</div>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm flex-fill" id="vault-select">
+                        <option value="">Kies een apparaat…</option>
+                        <?php foreach ($vaultOptions as $v) : ?><option value="<?= $v['id'] ?>"><?= esc($v['name']) ?></option><?php endforeach ?>
+                    </select>
+                    <button type="button" class="btn btn-sm btn-primary" id="vault-btn">Toevoegen</button>
+                </div>
+            <?php endif ?>
+        </div>
+        <div class="tab-pane fade" id="add-other">
+            <div class="small text-muted mb-2">Bijvoorbeeld een UISP-straalverbinding tussen gebouwen binnen deze site. Alles wat eronder hangt, verhuist mee.</div>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm flex-fill" id="add-select">
+                    <option value="">Kies een apparaat…</option>
+                    <?php foreach ($addable as $group => $list) : ?>
+                        <optgroup label="<?= esc($group, 'attr') ?>">
+                            <?php foreach ($list as $a) : ?><option value="<?= $a['id'] ?>"><?= esc($a['name']) ?></option><?php endforeach ?>
+                        </optgroup>
+                    <?php endforeach ?>
+                </select>
+                <button type="button" class="btn btn-sm btn-primary" id="add-btn">Toevoegen</button>
+            </div>
+        </div>
     </div>
+    <div class="small text-danger mt-2" id="add-err"></div>
 </div></div>
 <?php endif ?>
 
@@ -73,6 +110,13 @@ foreach (device_types() as $k => $t) {
         <?php if ($manage) : ?>
         <form id="ed-form" autocomplete="off">
             <input type="hidden" name="child_id" id="ed-child">
+            <div id="ed-manual" class="d-none mb-2">
+                <div class="row g-2">
+                    <div class="col-12"><label class="form-label small mb-1">Naam</label><input class="form-control" name="m_name" id="ed-mname"></div>
+                    <div class="col-6"><label class="form-label small mb-1">Model</label><input class="form-control" name="m_model" id="ed-mmodel"></div>
+                    <div class="col-6"><label class="form-label small mb-1">IP</label><input class="form-control" name="m_ip" id="ed-mip" inputmode="decimal"></div>
+                </div>
+            </div>
             <label class="form-label small mb-1">Hangt aan</label>
             <select class="form-select" name="parent_id" id="ed-parent"></select>
             <div class="row g-2 mt-1">
@@ -91,6 +135,7 @@ foreach (device_types() as $k => $t) {
             <div class="d-flex gap-2 mt-3 flex-wrap">
                 <button class="btn btn-primary flex-fill"><i class="bi bi-check2"></i> Opslaan</button>
                 <button type="button" class="btn btn-outline-secondary d-none" id="ed-unlock"><i class="bi bi-unlock"></i> Terug naar automatisch</button>
+                <button type="button" class="btn btn-outline-danger d-none" id="ed-remove"><i class="bi bi-trash"></i> <span>Verwijderen</span></button>
             </div>
             <div class="small text-danger mt-2" id="ed-err"></div>
         </form>
@@ -104,7 +149,7 @@ foreach (device_types() as $k => $t) {
     const SITE = <?= (int) $site['id'] ?>;
     const URL = <?= json_encode(site_url('netwerk/topologie/' . $site['id'])) ?>;
     const DEVICE_URL = <?= json_encode(site_url('apparaten/')) ?>;
-    const ICONS = <?= json_encode($typeIcons) ?>;
+    const ICONS = Object.assign({}, <?= json_encode($manualIcons) ?>, <?= json_encode($typeIcons) ?>);
     const TYPES = <?= json_encode($types, JSON_UNESCAPED_UNICODE) ?>;
     const MANAGE = <?= $manage ? 'true' : 'false' ?>;
     let nodes = <?= json_encode($nodes, JSON_UNESCAPED_UNICODE) ?>;
@@ -144,14 +189,16 @@ foreach (device_types() as $k => $t) {
             if (guard.has(n.id)) return;
             guard.add(n.id);
             maxDepth = Math.max(maxDepth, depth);
-            const ch = kids[n.id] || [];
-            if (!ch.length) { pos[n.id] = { x, y: depth * (H + GY) }; x += W + GX; return; }
+            const ch = (kids[n.id] || []).filter(c => !guard.has(c.id));
             ch.forEach(c => place(c, depth + 1, guard));
-            const xs = ch.map(c => pos[c.id]?.x).filter(v => v !== undefined);
+            const xs = ch.map(c => pos[c.id]?.x).filter(v => Number.isFinite(v));
+            if (!xs.length) { pos[n.id] = { x, y: depth * (H + GY) }; x += W + GX; return; }
             pos[n.id] = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: depth * (H + GY) };
         };
         const guard = new Set();
         roots.forEach(r => { place(r, 0, guard); x += GX * 2; });
+        // Vangnet: wat niet bereikt is (rondje), alsnog bovenaan tekenen
+        nodes.forEach(n => { if (!guard.has(n.id)) { n.parent = null; place(n, 0, guard); x += GX * 2; } });
         bounds = { w: Math.max(x - GX * 3, W), h: (maxDepth + 1) * (H + GY) - GY };
     }
 
@@ -181,15 +228,16 @@ foreach (device_types() as $k => $t) {
         });
         nodes.forEach(n => {
             const p = pos[n.id]; if (!p) return;
-            const b = el('g', { class: 'node st-' + n.status + (n.monitor ? '' : ' nomon') + (n.foreign ? ' foreign' : ''), transform: `translate(${p.x},${p.y})`, tabindex: 0, 'data-id': n.id }, boxes);
+            const b = el('g', { class: 'node st-' + n.status + (n.monitor ? '' : ' nomon') + (n.foreign && n.kind === 'network' ? ' foreign' : '') + ' k-' + n.kind, transform: `translate(${p.x},${p.y})`, tabindex: 0, 'data-id': n.id }, boxes);
             el('rect', { width: W, height: H, rx: 10 }, b);
-            el('circle', { cx: W - 14, cy: 14, r: 5, class: 'sdot' }, b);
+            if (n.kind === 'network') el('circle', { cx: W - 14, cy: 14, r: 5, class: 'sdot' }, b);
             const fo = el('foreignObject', { x: 8, y: 8, width: 30, height: 30 }, b);
             fo.innerHTML = '<div xmlns="http://www.w3.org/1999/xhtml" class="nicon"><i class="bi bi-' + esc(ICONS[n.type] || 'hdd-network') + '"></i></div>';
             const t1 = el('text', { x: 44, y: 24, class: 'nname' }, b); t1.textContent = cut(n.name, 17);
             const t2 = el('text', { x: 44, y: 41, class: 'nsub' }, b); t2.textContent = cut(n.model || '', 20);
             const t3 = el('text', { x: 44, y: 55, class: 'nsub mono' }, b); t3.textContent = cut(n.ip || n.mac || '', 22);
-            if (n.foreign) { const t4 = el('text', { x: W - 8, y: H - 6, class: 'nplat', 'text-anchor': 'end' }, b); t4.textContent = n.platform.toUpperCase(); }
+            const tag = n.kind === 'manual' ? 'EIGEN' : n.kind === 'vault' ? 'KLUIS' : (n.foreign ? n.platform.toUpperCase() : '');
+            if (tag) { const t4 = el('text', { x: W - 8, y: H - 6, class: 'nplat', 'text-anchor': 'end' }, b); t4.textContent = tag; }
             const tt = el('title', {}, b); tt.textContent = n.name + (n.status === 'offline' ? ' (offline)' : '');
             b.addEventListener('click', () => { if (!moved) openEditor(n.id); });
             b.addEventListener('keydown', e => { if (e.key === 'Enter') openEditor(n.id); });
@@ -199,7 +247,10 @@ foreach (device_types() as $k => $t) {
 
     // ---------- Pan & zoom ----------
     let view = { x: 0, y: 0, w: 100, h: 100 }, moved = false;
-    function apply() { svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`); }
+    function apply() {
+        if (![view.x, view.y, view.w, view.h].every(Number.isFinite) || view.w <= 0 || view.h <= 0) { view = { x: -30, y: -30, w: 1200, h: 800 }; }
+        svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+    }
     function fit() {
         const r = svg.getBoundingClientRect(), pad = 30;
         const w = bounds.w + pad * 2, h = bounds.h + pad * 2;
@@ -269,7 +320,11 @@ foreach (device_types() as $k => $t) {
         $('ed-note').value = n.note || '';
         const t = n.link || (n.platform === 'uisp' ? 'ptp' : 'wired');
         document.querySelectorAll('#ed-types input').forEach(r => r.checked = r.value === t);
-        $('ed-unlock').classList.toggle('d-none', !n.locked);
+        $('ed-unlock').classList.toggle('d-none', !n.locked || n.kind !== 'network');
+        $('ed-manual').classList.toggle('d-none', n.kind !== 'manual');
+        $('ed-mname').value = n.name || ''; $('ed-mmodel').value = n.model || ''; $('ed-mip').value = n.ip || '';
+        $('ed-remove').classList.toggle('d-none', n.kind === 'network');
+        $('ed-remove').querySelector('span').textContent = n.kind === 'vault' ? 'Uit topologie halen' : 'Verwijderen';
         $('ed-err').textContent = '';
         bootstrap.Offcanvas.getOrCreateInstance(sheet).show();
     }
@@ -277,6 +332,11 @@ foreach (device_types() as $k => $t) {
         $('ed-form').addEventListener('submit', async e => {
             e.preventDefault();
             const f = new FormData(e.target), data = Object.fromEntries(f.entries());
+            const cur = nodes.find(x => x.id === +data.child_id);
+            if (cur && cur.kind === 'manual') {
+                const r = await post('/hernoemen', { child_id: data.child_id, name: data.m_name, model: data.m_model, ip: data.m_ip });
+                if (r.error) { $('ed-err').textContent = r.error; return; }
+            }
             const res = await post('/verbinding', data);
             if (res.error) { $('ed-err').textContent = res.error; return; }
             nodes = res.nodes; draw(); bootstrap.Offcanvas.getOrCreateInstance(sheet).hide();
@@ -285,6 +345,31 @@ foreach (device_types() as $k => $t) {
             const res = await post('/automatisch', { child_id: $('ed-child').value });
             if (res.error) { $('ed-err').textContent = res.error; return; }
             nodes = res.nodes; draw(); bootstrap.Offcanvas.getOrCreateInstance(sheet).hide();
+        });
+        $('ed-remove').addEventListener('click', async () => {
+            const n = nodes.find(x => x.id === +$('ed-child').value); if (!n) return;
+            if (!confirm(n.kind === 'vault' ? n.name + ' uit de topologie halen? Het apparaat blijft in de kluis.' : n.name + ' verwijderen?')) return;
+            const res = await post('/verwijderen', { child_id: n.id });
+            if (res.error) { $('ed-err').textContent = res.error; return; }
+            nodes = res.nodes; draw(); refreshVault(res.vault); bootstrap.Offcanvas.getOrCreateInstance(sheet).hide();
+        });
+        function refreshVault(list) {
+            const sel = $('vault-select'); if (!sel || !list) return;
+            sel.innerHTML = '<option value="">Kies een apparaat…</option>' + list.map(v => '<option value="' + v.id + '">' + esc(v.name) + '</option>').join('');
+        }
+        const err = t => { $('add-err').textContent = t || ''; };
+        $('manual-form').addEventListener('submit', async e => {
+            e.preventDefault(); err();
+            const res = await post('/eigen', Object.fromEntries(new FormData(e.target).entries()));
+            if (res.error) { err(res.error); return; }
+            e.target.reset(); nodes = res.nodes; draw(); openEditor(res.added);
+        });
+        const vb = $('vault-btn');
+        if (vb) vb.addEventListener('click', async () => {
+            const id = $('vault-select').value; if (!id) return; err();
+            const res = await post('/kluis', { device_id: id });
+            if (res.error) { err(res.error); return; }
+            nodes = res.nodes; draw(); refreshVault(res.vault); openEditor(res.added);
         });
         $('add-btn').addEventListener('click', async () => {
             const id = $('add-select').value; if (!id) return;

@@ -29,7 +29,7 @@ class Networks extends BaseController
             ->orderBy('network_sites.site_id IS NOT NULL', '', false)->orderBy('network_sites.ignored')->orderBy('network_sites.name')->findAll();
 
         $inbox = model(NetworkDeviceModel::class)
-            ->where('device_id', null)->where('ignored', 0)->where('gone', 0)
+            ->where('device_id', null)->where('ignored', 0)->where('gone', 0)->whereIn('platform', Network::MONITORED)
             ->orderBy('network_site_id')->orderBy('name')->findAll();
 
         $offline = Network::offline();
