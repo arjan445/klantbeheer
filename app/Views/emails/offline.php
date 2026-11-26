@@ -9,7 +9,7 @@
  * @var array       $settings
  * @var string      $logo      cid: of URL
  * @var bool        $internal  jouw versie
- * @var list<string> $clientTo  naar wie de klantversie ging
+ * @var string      $clientNote of/wanneer de klant gemaild is (jouw versie)
  * @var list<string> $wouldTo   e-mailadres van de klant
  * @var bool        $clientOn  klant krijgt mails
  * @var bool        $preview
@@ -52,10 +52,7 @@ $row = static function (array $d, bool $isStill) use ($red, $since, $font, $minD
 
 <?php if ($internal) : ?>
 <tr><td style="background:#e8ebf7;color:<?= $navy ?>;padding:9px 24px;<?= $font ?>font-size:13px;">
-    <strong>Intern</strong> &middot;
-    <?php if ($clientTo !== []) : ?>Klant is ook gemaild (<?= esc(implode(', ', $clientTo)) ?>).
-    <?php elseif ($wouldTo === []) : ?>Klant niet gemaild: geen e-mailadres.
-    <?php else : ?>Klant niet gemaild (staat uit).<?php endif ?>
+    <strong>Intern</strong> &middot; <?= esc(ucfirst($clientNote)) ?>.
 </td></tr>
 <?php elseif (! empty($test)) : ?>
 <tr><td style="background:#fff3cd;color:#664d03;padding:9px 24px;<?= $font ?>font-size:13px;">

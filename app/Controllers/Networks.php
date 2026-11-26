@@ -239,6 +239,12 @@ class Networks extends BaseController
             \App\Libraries\Setting::set('alerts.replyTo', mb_substr(trim((string) $this->request->getPost('alerts_replyTo')), 0, 255));
             \App\Libraries\Setting::set('alerts.phone', mb_substr(trim((string) $this->request->getPost('alerts_phone')), 0, 50));
             \App\Libraries\Setting::set('alerts.pdf', $this->request->getPost('alerts_pdf') ? '1' : '0');
+            foreach (['sendFrom' => '17:00', 'sendUntil' => '06:00', 'nightFrom' => '23:00'] as $k => $def) {
+                $v = trim((string) $this->request->getPost('alerts_' . $k));
+                \App\Libraries\Setting::set('alerts.' . $k, preg_match('/^([01]?\d|2[0-3]):[0-5]\d$/', $v) ? $v : $def);
+            }
+            \App\Libraries\Setting::set('alerts.nightDelay', (string) max(5, min(1440, (int) ($this->request->getPost('alerts_nightDelay') ?: 60))));
+            \App\Libraries\Setting::set('alerts.ownWindow', $this->request->getPost('alerts_ownWindow') ? '1' : '0');
             // Per klant: mails naar de klant aan/uit (alleen de klanten die op de pagina stonden)
             $shown = array_map('intval', (array) $this->request->getPost('alerts_shown'));
             $on    = array_map('intval', (array) $this->request->getPost('alerts_customers'));
