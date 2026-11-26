@@ -43,15 +43,13 @@
     <span><i class="bi bi-envelope-exclamation"></i> Storingsmeldingen aan klanten</span>
     <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" name="alerts_enabled" value="1" id="al-on" <?= $alerts['enabled'] ? 'checked' : '' ?>><label class="form-check-label small" for="al-on">Aan</label></div>
 </div><div class="card-body">
-    <p class="small text-muted">Is een bewaakt apparaat langer dan de wachttijd offline, dan krijgt de klant één mail met alle apparaten die nu niet bereikbaar zijn, in de volgorde van de topologie. Met het logo en een eenvoudig netwerkoverzicht als PDF (zonder IP- of MAC-adressen). Per storing één mail.</p>
+    <p class="small text-muted">Is een bewaakt apparaat langer dan de wachttijd offline, dan krijg <strong>jij altijd</strong> een mail. De klant krijgt er ook een als "Klanten mailen" aan staat en die klant hieronder is aangevinkt. Kort, met logo en (optioneel) een netwerkoverzicht als PDF zonder IP/MAC. Per storing één mail.</p>
     <div class="row g-3">
         <div class="col-md-6">
-            <label class="form-label small mb-1">Naar wie?</label>
-            <div class="form-check"><input class="form-check-input" type="radio" name="alerts_mode" value="test" id="al-test" <?= $alerts['mode'] === 'test' ? 'checked' : '' ?>><label class="form-check-label" for="al-test"><strong>Test</strong>: alles naar mij</label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="alerts_mode" value="live" id="al-live" <?= $alerts['mode'] === 'live' ? 'checked' : '' ?>><label class="form-check-label" for="al-live"><strong>Live</strong>: naar het e-mailadres van de klant</label></div>
-            <label class="form-label small mb-1 mt-2">Testadres</label>
+            <label class="form-label small mb-1">Mijn adres (krijgt altijd een mail)</label>
             <input name="alerts_testTo" class="form-control" value="<?= esc($alerts['testTo'], 'attr') ?>" placeholder="<?= esc(implode(', ', $alertAdmins) ?: 'jij@bedrijf.nl', 'attr') ?>">
-            <div class="form-text">Leeg = de beheerders (<?= esc(implode(', ', $alertAdmins) ?: 'geen') ?>). In live-stand ook voor klanten zonder e-mailadres.</div>
+            <div class="form-text">Leeg = de beheerders (<?= esc(implode(', ', $alertAdmins) ?: 'geen') ?>).</div>
+            <div class="form-check form-switch mt-3"><input class="form-check-input" type="checkbox" role="switch" name="alerts_mode" value="live" id="al-live" <?= $alerts['mode'] === 'live' ? 'checked' : '' ?>><label class="form-check-label" for="al-live"><strong>Klanten mailen</strong> (de aangevinkte klanten)</label></div>
         </div>
         <div class="col-md-6">
             <div class="row g-2">
@@ -61,6 +59,17 @@
             </div>
             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="alerts_pdf" value="1" id="al-pdf" <?= $alerts['pdf'] ? 'checked' : '' ?>><label class="form-check-label" for="al-pdf">Netwerkoverzicht (PDF) meesturen</label></div>
         </div>
+    </div>
+    <label class="form-label small mb-1 mt-3">Welke klanten krijgen een mail?</label>
+    <div class="row g-1 alert-customers">
+        <?php foreach ($alertCustomers as $c) : ?>
+            <input type="hidden" name="alerts_shown[]" value="<?= (int) $c['id'] ?>">
+            <div class="col-sm-6 col-lg-4"><div class="form-check">
+                <input class="form-check-input" type="checkbox" name="alerts_customers[]" value="<?= (int) $c['id'] ?>" id="alc<?= (int) $c['id'] ?>" <?= $c['alert_mail'] ? 'checked' : '' ?> <?= $c['email'] ? '' : 'disabled' ?>>
+                <label class="form-check-label" for="alc<?= (int) $c['id'] ?>"><?= esc($c['name']) ?><?= $c['email'] ? '' : ' <span class="text-muted small">(geen e-mail)</span>' ?></label>
+            </div></div>
+        <?php endforeach ?>
+        <?php if ($alertCustomers === []) : ?><div class="small text-muted">Nog geen klanten met een gekoppelde netwerksite.</div><?php endif ?>
     </div>
     <?php if ($alertLast) : ?>
         <div class="small text-muted mt-3"><strong>Laatst verstuurd</strong> (<?= esc(\App\Libraries\Network::ago($alertLast['at'])) ?> geleden): <?= esc(implode(' · ', $alertLast['notes'])) ?></div>
@@ -81,7 +90,7 @@
 </div></div>
 
 <div class="card mt-3"><div class="card-header">Storingsmail bekijken of testen</div><div class="card-body">
-    <p class="small text-muted mb-2">Met de apparaten die nu offline zijn bij die klant, of anders met een voorbeeld (een switch met wat erachter hangt). De testmail gaat altijd naar het testadres.</p>
+    <p class="small text-muted mb-2">De versie die de klant krijgt, met wat nu offline is (of anders een voorbeeld). De testmail gaat naar jou.</p>
     <form method="post" action="<?= site_url('beheer/netwerk/melding-test') ?>" class="d-flex gap-2 flex-wrap align-items-center"><?= csrf_field() ?>
         <select name="klant" id="al-klant" class="form-select" style="max-width: 320px" required>
             <?php foreach ($alertCustomers as $c) : ?><option value="<?= $c['id'] ?>"><?= esc($c['name']) ?><?= $c['email'] ? '' : ' (geen e-mail)' ?></option><?php endforeach ?>
