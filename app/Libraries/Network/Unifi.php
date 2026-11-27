@@ -199,6 +199,31 @@ class Unifi extends Connector
         if ($sites === [] && $devices === [] && $errors !== []) {
             throw new \RuntimeException(implode(' · ', $errors));
         }
+
+        // MAC-adressen zijn uniek: spookapparaten (niet op de console) overslaan, en
+        // staat hetzelfde apparaat bij meer sites, dan telt de site waar het online is.
+        $ghosts = Network::ghosts();
+        $byMac  = [];
+        foreach ($devices as $ext => $d) {
+            $mac = $d['mac'] ?? null;
+            if ($mac === null) {
+                continue;
+            }
+            if (isset($ghosts[$mac])) {
+                unset($devices[$ext]);
+                continue;
+            }
+            if (isset($byMac[$mac])) {
+                $other = $devices[$byMac[$mac]];
+                $keepNew = $d['status'] === 'online' && $other['status'] !== 'online';
+                unset($devices[$keepNew ? $byMac[$mac] : $ext]);
+                if ($keepNew) {
+                    $byMac[$mac] = $ext;
+                }
+                continue;
+            }
+            $byMac[$mac] = $ext;
+        }
         array_push($notes, ...array_map(static fn ($e) => $e . ' (de rest is wel opgehaald)', $errors));
 
         return ['sites' => array_values($sites), 'devices' => array_values($devices), 'notes' => $notes, 'partial' => $partial];

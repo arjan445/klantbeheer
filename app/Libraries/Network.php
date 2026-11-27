@@ -40,6 +40,25 @@ class Network
         return (string) Setting::get($key, '');
     }
 
+    /**
+     * Spookapparaten: wel in de UniFi-cloud (Site Manager), niet (meer) op de console
+     * zelf. Bijvoorbeeld ooit geadopteerd en daarna verwijderd of gereset. Die
+     * slaan we over; MAC-adres => [site => network_sites.id, since => tijd].
+     *
+     * @return array<string,array{site:int,since:string}>
+     */
+    public static function ghosts(): array
+    {
+        $g = json_decode(self::setting('unifi.ghosts'), true);
+
+        return is_array($g) ? $g : [];
+    }
+
+    public static function saveGhosts(array $ghosts): void
+    {
+        Setting::set('unifi.ghosts', $ghosts === [] ? null : json_encode($ghosts));
+    }
+
     /** API-sleutels staan versleuteld in app_settings ("enc:…"), of los in .env */
     public static function secret(string $key): string
     {
