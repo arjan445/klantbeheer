@@ -108,6 +108,7 @@ class Topology
                 $links[$mac] = Unifi::uplinkOf($d);
             }
             self::applyAuto('unifi', $links, 'mac');
+            self::saveSignals($links);
             $ghostNote = self::markGhosts($site, $seen);
             if ($ghostNote !== null && $networkSiteId !== null) {
                 $notes[] = $ghostNote;
@@ -116,6 +117,25 @@ class Topology
         }
 
         return $notes;
+    }
+
+    /**
+     * Signaal van draadloze UniFi-uplinks (mesh) bewaren; bedraad of onbekend: leeg.
+     *
+     * @param array<string,?array> $links MAC => uplinkOf()
+     */
+    private static function saveSignals(array $links): void
+    {
+        $db  = db_connect();
+        $now = date('Y-m-d H:i:s');
+        foreach ($links as $mac => $u) {
+            $signal = $u['signal'] ?? null;
+            $db->table('network_devices')->where('platform', 'unifi')->where('mac', $mac)->update([
+                'signal'    => $signal,
+                'radio'     => $signal !== null ? ($u['radio'] ?? null) : null,
+                'signal_at' => $signal !== null ? $now : null,
+            ]);
+        }
     }
 
     /**
@@ -444,6 +464,9 @@ class Topology
                 'parent_port' => $p ? $l['parent_port'] : null,
                 'local_port'  => $p ? $l['local_port'] : null,
                 'link'        => $p ? $l['link_type'] : null,
+                'signal'      => $p && isset($d['signal']) && $d['signal'] !== null ? (int) $d['signal'] : null,
+                'radio'       => $p ? ($d['radio'] ?? null) : null,
+                'signal_at'   => $p && ! empty($d['signal_at']) ? Network::ago($d['signal_at']) : null,
                 'locked'      => (bool) ($l['locked'] ?? false),
                 'note'        => $l['note'] ?? null,
                 'auto'        => $l && $l['locked'] && ($l['auto_parent_id'] || $l['auto_seen_at']) ? [

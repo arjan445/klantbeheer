@@ -627,8 +627,9 @@ class Unifi extends Connector
      */
     public static function uplinkOf(array $d): ?array
     {
-        $u = is_array($d['uplink'] ?? null) ? $d['uplink'] : [];
-        if (empty($u['uplink_mac']) && is_array($d['last_uplink'] ?? null)) {
+        $u    = is_array($d['uplink'] ?? null) ? $d['uplink'] : [];
+        $live = ! empty($u['uplink_mac']);
+        if (! $live && is_array($d['last_uplink'] ?? null)) {
             $u = $d['last_uplink'] + $u; // offline: laatst bekende uplink
         }
         $mac = self::normalizeMac($u['uplink_mac'] ?? null);
@@ -638,11 +639,30 @@ class Unifi extends Connector
         $wireless = ($u['type'] ?? '') === 'wireless' || ! empty($u['ap_mac']);
         $port     = $u['uplink_remote_port'] ?? null;
 
+        $signal = null;
+        $radio  = null;
+        if ($wireless && $live) { // alleen een actueel signaal
+            $sig    = $u['signal'] ?? null;
+            $signal = is_numeric($sig) && $sig < 0 && $sig > -110 ? (int) $sig : null;
+            $band   = match ($u['radio'] ?? '') { 'ng' => '2,4 GHz', 'na' => '5 GHz', '6e' => '6 GHz', default => null };
+            $rate   = static fn ($kbps) => is_numeric($kbps) && $kbps > 0 ? (int) round($kbps / 1000) : null;
+            $tx     = $rate($u['tx_rate'] ?? null);
+            $rx     = $rate($u['rx_rate'] ?? null);
+            $parts  = array_filter([
+                $band,
+                isset($u['channel']) ? 'kanaal ' . $u['channel'] : null,
+                $tx || $rx ? '↓ ' . ($rx ?? '?') . ' / ↑ ' . ($tx ?? '?') . ' Mbit/s' : null,
+            ]);
+            $radio = $parts ? implode(' · ', $parts) : null;
+        }
+
         return [
             'parent_mac'  => $mac,
             'parent_port' => $wireless || $port === null || $port === '' ? null : (string) $port,
             'local_port'  => isset($u['port_idx']) && ! $wireless ? (string) $u['port_idx'] : null,
             'type'        => $wireless ? 'wireless' : 'wired',
+            'signal'      => $signal,
+            'radio'       => $radio,
         ];
     }
 

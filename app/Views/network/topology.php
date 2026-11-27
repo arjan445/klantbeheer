@@ -42,6 +42,7 @@ foreach (device_types() as $k => $t) {
     <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" class="e-wireless"/></svg> wifi</span>
     <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" class="e-ptp"/></svg> straalverbinding</span>
     <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" class="e-vpn"/></svg> VPN</span>
+    <span class="text-nowrap"><span class="sigdot sp-good"></span> sterk <span class="sigdot sp-ok"></span> matig <span class="sigdot sp-bad"></span> zwak signaal</span>
     <span><i class="bi bi-lock-fill"></i> zelf ingesteld</span>
     <?php if ($lastAt) : ?><span class="ms-auto">verbindingen opgehaald <?= esc(Network::ago(date('Y-m-d H:i:s', $lastAt))) ?> geleden</span><?php endif ?>
 </div>
@@ -225,11 +226,27 @@ foreach (device_types() as $k => $t) {
             if (!n.parent || !pos[n.parent] || !pos[n.id]) return;
             const p = pos[n.parent], c = pos[n.id];
             const x1 = p.x + W / 2, y1 = p.y + H, x2 = c.x + W / 2, y2 = c.y, my = (y1 + y2) / 2;
-            el('path', { d: `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`, class: 'edge e-' + (n.link || 'wired') + (n.locked ? ' locked' : '') }, edges);
+            // Signaal (UISP-station/PTP of UniFi-mesh): kleur naar kwaliteit
+            const sq = n.signal === null || n.signal === undefined ? '' : (n.signal >= -60 ? 'good' : n.signal >= -70 ? 'ok' : 'bad');
+            const path = el('path', { d: `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`, class: 'edge e-' + (n.link || 'wired') + (n.locked ? ' locked' : '') + (sq ? ' sig-' + sq : '') }, edges);
+            if (sq) {
+                const tt = el('title', {}, path);
+                tt.textContent = 'Signaal ' + n.signal + ' dBm' + (n.radio ? '\n' + n.radio : '') + (n.signal_at ? '\ngemeten ' + n.signal_at + (n.signal_at === 'net' ? '' : ' geleden') : '');
+            }
             const txt = [n.parent_port ? 'poort ' + n.parent_port : (n.local_port ? 'eigen poort ' + n.local_port : ''), n.link && n.link !== 'wired' ? (n.link === 'ptp' ? 'PTP' : n.link === 'vpn' ? 'VPN' : 'wifi') : ''].filter(Boolean).join(' · ');
             if (txt || n.locked) {
                 const t = el('text', { x: x2, y: y2 - 12, class: 'elabel', 'text-anchor': 'middle' }, labels);
                 t.textContent = (n.locked ? '🔒 ' : '') + txt;
+            }
+            if (sq) {
+                // Signaalpil halverwege de lijn
+                const sg = el('g', { class: 'sigpill sp-' + sq, transform: `translate(${(x1 + x2) / 2},${my})` }, labels);
+                const r = el('rect', { y: -9, height: 18, rx: 9 }, sg);
+                const st = el('text', { y: 4, 'text-anchor': 'middle' }, sg);
+                st.textContent = n.signal + ' dBm';
+                const w = (st.getComputedTextLength() || 50) + 14;
+                r.setAttribute('x', -w / 2); r.setAttribute('width', w);
+                const stt = el('title', {}, sg); stt.textContent = 'Signaal ' + n.signal + ' dBm' + (n.radio ? '\n' + n.radio : '') + (n.signal_at ? '\ngemeten ' + n.signal_at + (n.signal_at === 'net' ? '' : ' geleden') : '');
             }
         });
         nodes.forEach(n => {
