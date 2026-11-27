@@ -108,10 +108,65 @@ class Topology
                 $links[$mac] = Unifi::uplinkOf($d);
             }
             self::applyAuto('unifi', $links, 'mac');
+            $ghostNote = self::markGhosts($site, $seen);
+            if ($ghostNote !== null && $networkSiteId !== null) {
+                $notes[] = $ghostNote;
+            }
             Setting::set($key, (string) time());
         }
 
         return $notes;
+    }
+
+    /**
+     * Spookcontrole: apparaten die de UniFi-cloud bij deze site noemt, maar die niet in
+     * de apparatenlijst van de console zelf staan. Die gelden als verdwenen (en de
+     * synchronisatie slaat ze voortaan over). Komt zo'n apparaat later wél weer op de
+     * console, dan telt het gewoon weer mee.
+     *
+     * Veilig: alleen als alle apparaten die nu online zijn in de lijst van de console
+     * staan (anders hebben we misschien de lijst van een andere console of site).
+     *
+     * @param list<string> $seen MAC-adressen op de console
+     */
+    private static function markGhosts(array $site, array $seen): ?string
+    {
+        $seenSet = array_flip($seen);
+        $mine    = model(NetworkDeviceModel::class)->select('id, mac, status, name, model')
+            ->where('network_site_id', $site['id'])->where('platform', 'unifi')->where('gone', 0)
+            ->where('mac IS NOT NULL', null, false)->findAll();
+        foreach ($mine as $d) {
+            if ($d['status'] === 'online' && ! isset($seenSet[$d['mac']])) {
+                return null; // lijst klopt niet met wat er online is: niets concluderen
+            }
+        }
+
+        $ghosts = Network::ghosts();
+        $before = $ghosts;
+        // Wat weer op de console staat, is geen spook meer
+        foreach ($ghosts as $mac => $g) {
+            if ((int) ($g['site'] ?? 0) === (int) $site['id'] && isset($seenSet[$mac])) {
+                unset($ghosts[$mac]);
+            }
+        }
+        $new = [];
+        foreach ($mine as $d) {
+            if (! isset($seenSet[$d['mac']]) && $d['status'] !== 'online') {
+                $ghosts[$d['mac']] = ['site' => (int) $site['id'], 'since' => date('Y-m-d H:i:s')];
+                $new[]             = (int) $d['id'];
+            }
+        }
+        if ($ghosts !== $before) {
+            Network::saveGhosts($ghosts);
+        }
+        if ($new === []) {
+            return null;
+        }
+        model(NetworkDeviceModel::class)->whereIn('id', $new)
+            ->set(['gone' => 1, 'status' => 'unknown', 'offline_since' => null])->update();
+        log_message('info', 'Topologie ' . $site['name'] . ': ' . count($new) . ' spookapparaten (niet op de console) weggezet');
+
+        return count($new) . ' apparaten stonden wel in de UniFi-cloud maar niet meer op de console van ' . $site['name'] . '; die tellen niet meer mee.';
     }
 
     /**
