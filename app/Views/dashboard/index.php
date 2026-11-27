@@ -123,6 +123,7 @@ $today    = date('Y-m-d');
                 <div class="card-body text-muted small">Niets te verlengen in de komende 60 dagen.</div>
             <?php else : ?>
             <ul class="renew-list">
+                <?php usort($upcoming, static fn ($a, $b) => strcmp($a['next_invoice_date'], $b['next_invoice_date'])); ?>
                 <?php foreach (array_slice($upcoming, 0, 8) as $s) : $d = strtotime($s['next_invoice_date']); ?>
                 <li class="<?= $s['next_invoice_date'] < $today ? 'late' : '' ?>">
                     <span class="renew-date"><span><?= (int) date('j', $d) ?></span><?= $mon[(int) date('n', $d)] ?></span>
@@ -143,7 +144,7 @@ $today    = date('Y-m-d');
 <?= view('todos/_script') ?>
 
 <?php // ---- Cijfers ---- ?>
-<?php if (isset($activeSubs)) : $maxRev = max(1, ...array_map(static fn ($t) => $t['revenue'], $byType ?: [['revenue' => 1]])); ?>
+<?php if (isset($activeSubs)) : $maxRev = max([1, ...array_values(array_map(static fn ($t) => (float) $t['revenue'], $byType))]); ?>
 <div class="dash-section">Cijfers <span>per jaar, excl. btw</span></div>
 <div class="row g-3 mb-4">
     <div class="col-lg-5">
