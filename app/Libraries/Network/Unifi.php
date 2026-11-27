@@ -190,9 +190,7 @@ class Unifi extends Connector
                 }
                 $sites[$s['external_id']] = $s;
             }
-            foreach ($one['devices'] as $d) {
-                $devices[$d['external_id']] ??= $d;
-            }
+            array_push($devices, ...$one['devices']); // samenvoegen gebeurt hieronder, per MAC-adres
             array_push($notes, ...$one['notes']);
         }
 
@@ -200,33 +198,77 @@ class Unifi extends Connector
             throw new \RuntimeException(implode(' · ', $errors));
         }
 
-        // MAC-adressen zijn uniek: spookapparaten (niet op de console) overslaan, en
-        // staat hetzelfde apparaat bij meer sites, dan telt de site waar het online is.
-        $ghosts = Network::ghosts();
-        $byMac  = [];
-        foreach ($devices as $ext => $d) {
-            $mac = $d['mac'] ?? null;
-            if ($mac === null) {
-                continue;
-            }
-            if (isset($ghosts[$mac])) {
-                unset($devices[$ext]);
-                continue;
-            }
-            if (isset($byMac[$mac])) {
-                $other = $devices[$byMac[$mac]];
-                $keepNew = $d['status'] === 'online' && $other['status'] !== 'online';
-                unset($devices[$keepNew ? $byMac[$mac] : $ext]);
-                if ($keepNew) {
-                    $byMac[$mac] = $ext;
-                }
-                continue;
-            }
-            $byMac[$mac] = $ext;
-        }
+        $devices = self::onePerMac($devices);
         array_push($notes, ...array_map(static fn ($e) => $e . ' (de rest is wel opgehaald)', $errors));
 
         return ['sites' => array_values($sites), 'devices' => array_values($devices), 'notes' => $notes, 'partial' => $partial];
+    }
+
+    /**
+     * Eén vermelding per apparaat. De UniFi-cloud blijft een apparaat dat naar een
+     * andere site verhuisde ook bij de oude site noemen (offline), met hetzelfde
+     * apparaat-ID. Zonder deze stap raken die twee door elkaar en springt het
+     * apparaat per synchronisatie van site.
+     *
+     *  1. Spookvermeldingen (MAC + site die niet op de console staan) vallen af.
+     *  2. Per MAC-adres wint de vermelding die online is; zijn ze allebei offline,
+     *     dan de site waar het apparaat al stond; anders de eerste.
+     *
+     * @param list<array> $rows
+     * @return list<array>
+     */
+    public static function onePerMac(array $rows): array
+    {
+        $ghosts = Network::ghostSites();     // MAC => [site-external-id => true]
+        $known  = self::storedSites();       // MAC => site-external-id waar hij nu staat
+        $best   = [];
+        $noMac  = [];
+        foreach ($rows as $d) {
+            $mac = $d['mac'] ?? null;
+            if ($mac === null) {
+                $noMac[] = $d;
+                continue;
+            }
+            if (isset($ghosts[$mac][(string) $d['site_external_id']])) {
+                continue;
+            }
+            $cur = $best[$mac] ?? null;
+            if ($cur === null) {
+                $best[$mac] = $d;
+                continue;
+            }
+            $score = static fn (array $x) => ($x['status'] === 'online' ? 4 : 0)
+                + (($known[$mac] ?? null) === $x['site_external_id'] ? 2 : 0)
+                + (str_starts_with((string) $x['site_external_id'], 'host:') ? 0 : 1);
+            if ($score($d) > $score($cur)) {
+                $best[$mac] = $d;
+            }
+        }
+        // Per apparaat-ID één keer (zelfde ID bij verschillende MAC's komt niet voor, maar zeker is zeker)
+        $out = [];
+        foreach (array_merge(array_values($best), $noMac) as $d) {
+            $out[$d['external_id']] ??= $d;
+        }
+
+        return array_values($out);
+    }
+
+    /** @return array<string,string> MAC => external_id van de site waar hij nu staat */
+    private static function storedSites(): array
+    {
+        $map = [];
+        try {
+            foreach (model(\App\Models\NetworkDeviceModel::class)->select('network_devices.mac, network_sites.external_id')
+                ->join('network_sites', 'network_sites.id = network_devices.network_site_id')
+                ->where('network_devices.platform', 'unifi')->where('network_devices.gone', 0)
+                ->where('network_devices.mac IS NOT NULL', null, false)->findAll() as $r) {
+                $map[$r['mac']] = $r['external_id'];
+            }
+        } catch (Throwable $e) {
+            // geen database: dan zonder
+        }
+
+        return $map;
     }
 
     /**
