@@ -164,16 +164,18 @@ class Topology
         $ghosts = Network::ghosts();
         $before = $ghosts;
         // Wat weer op de console staat, is geen spook meer
-        foreach ($ghosts as $mac => $g) {
+        foreach ($ghosts as $key => $g) {
+            $mac = (string) ($g['mac'] ?? $key);
             if ((int) ($g['site'] ?? 0) === (int) $site['id'] && isset($seenSet[$mac])) {
-                unset($ghosts[$mac]);
+                unset($ghosts[$key]);
             }
         }
         $new = [];
         foreach ($mine as $d) {
             if (! isset($seenSet[$d['mac']]) && $d['status'] !== 'online') {
-                $ghosts[$d['mac']] = ['site' => (int) $site['id'], 'since' => date('Y-m-d H:i:s')];
-                $new[]             = (int) $d['id'];
+                // Sleutel MAC + site: verhuist het apparaat, dan telt het op de nieuwe site gewoon
+                $ghosts[$d['mac'] . '@' . $site['id']] = ['mac' => $d['mac'], 'site' => (int) $site['id'], 'since' => date('Y-m-d H:i:s')];
+                $new[] = (int) $d['id'];
             }
         }
         if ($ghosts !== $before) {

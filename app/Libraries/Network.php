@@ -43,15 +43,42 @@ class Network
     /**
      * Spookapparaten: wel in de UniFi-cloud (Site Manager), niet (meer) op de console
      * zelf. Bijvoorbeeld ooit geadopteerd en daarna verwijderd of gereset. Die
-     * slaan we over; MAC-adres => [site => network_sites.id, since => tijd].
+     * slaan we over; "MAC@site" => [mac, site => network_sites.id, since => tijd].
      *
-     * @return array<string,array{site:int,since:string}>
+     * @return array<string,array{mac?:string,site:int,since:string}>
      */
     public static function ghosts(): array
     {
         $g = json_decode(self::setting('unifi.ghosts'), true);
 
         return is_array($g) ? $g : [];
+    }
+
+    /**
+     * Spookvermeldingen als MAC => [site-external-id => true]. Alleen díe combinatie
+     * valt af: hetzelfde apparaat op een andere site (verhuisd) telt gewoon mee.
+     *
+     * @return array<string,array<string,bool>>
+     */
+    public static function ghostSites(): array
+    {
+        $ghosts = self::ghosts();
+        if ($ghosts === []) {
+            return [];
+        }
+        $ext = [];
+        foreach (model(NetworkSiteModel::class)->select('id, external_id')->whereIn('id', array_unique(array_map(static fn ($g) => (int) ($g['site'] ?? 0), $ghosts)))->findAll() as $r) {
+            $ext[(int) $r['id']] = (string) $r['external_id'];
+        }
+        $out = [];
+        foreach ($ghosts as $key => $g) {
+            $mac = (string) ($g['mac'] ?? $key); // oude opslag: sleutel = MAC
+            if (isset($ext[(int) ($g['site'] ?? 0)])) {
+                $out[$mac][$ext[(int) $g['site']]] = true;
+            }
+        }
+
+        return $out;
     }
 
     public static function saveGhosts(array $ghosts): void
