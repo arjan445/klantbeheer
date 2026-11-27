@@ -40,6 +40,8 @@ class Alerts
             'nightDelay' => max(5, (int) $s('alerts.nightDelay', '60')),
             'ownWindow'  => $s('alerts.ownWindow', '0') === '1', // tijden ook voor mijn eigen mails
             'weekend'    => $s('alerts.weekend', '1') === '1', // za en zo de hele dag (de nachtregel blijft)
+            'recover'      => $s('alerts.recover', '1') === '1', // mail als het weer werkt
+            'recoverDelay' => max(0, min(120, (int) $s('alerts.recoverDelay', '10'))), // even wachten: wat nog meer terugkomt, gaat in dezelfde mail
         ];
     }
 
@@ -121,18 +123,32 @@ class Alerts
         $db  = db_connect();
         $now = date('Y-m-d H:i:s');
 
-        // Weer online (of niet meer bewaakt): storing afsluiten
-        $open = $db->table('network_alerts')->select('network_alerts.id, network_alerts.offline_since AS a_since, d.status, d.offline_since, d.gone, d.monitor')
+        // Storingen afsluiten. Drie gevallen:
+        //  - weer online: herstel, er volgt (verzameld) een herstelmail
+        //  - niet meer bewaakt/verdwenen: stil afsluiten
+        //  - al wéér offline (haperen): zelfde storing, loopt door zonder nieuwe mail
+        $open = $db->table('network_alerts')->select('network_alerts.*, d.status, d.offline_since AS d_since, d.gone, d.monitor')
             ->join('network_devices d', 'd.id = network_alerts.network_device_id', 'left')
             ->where('network_alerts.recovered_at', null)->get()->getResultArray();
-        $closed = [];
         foreach ($open as $a) {
-            if ($a['status'] !== 'offline' || $a['offline_since'] !== $a['a_since'] || (int) $a['gone'] === 1 || (int) $a['monitor'] === 0) {
-                $closed[] = (int) $a['id'];
+            $gone = $a['status'] === null || (int) $a['gone'] === 1 || (int) $a['monitor'] === 0;
+            if ($gone) {
+                $db->table('network_alerts')->where('id', $a['id'])->update(['recovered_at' => $now, 'recovery_notified_at' => $now, 'recovery_client_at' => $now]);
+            } elseif ($a['status'] !== 'offline') {
+                $db->table('network_alerts')->where('id', $a['id'])->update(['recovered_at' => $now]);
+            } elseif ($a['d_since'] !== $a['offline_since']) {
+                self::carryOver($a, (string) $a['d_since'], $now);
             }
         }
-        if ($closed !== []) {
-            $db->table('network_alerts')->whereIn('id', $closed)->update(['recovered_at' => $now]);
+        // Teruggekomen, maar voor de herstelmail al weer offline: ook haperen
+        $flap = $db->table('network_alerts')->select('network_alerts.*, d.status, d.offline_since AS d_since')
+            ->join('network_devices d', 'd.id = network_alerts.network_device_id')
+            ->where('network_alerts.recovered_at >=', date('Y-m-d H:i:s', time() - 3600))
+            ->groupStart()->where('network_alerts.recovery_notified_at', null)->orWhere('network_alerts.recovery_client_at', null)->groupEnd()
+            ->where('d.status', 'offline')->where('d.offline_since >', 'network_alerts.offline_since', false)
+            ->get()->getResultArray();
+        foreach ($flap as $a) {
+            self::carryOver($a, (string) $a['d_since'], $now);
         }
 
         // De eerste keer: wat nu al offline is, geldt als bekend (geen stapel mails
@@ -217,7 +233,205 @@ class Alerts
             }
         }
 
+        if ($s['recover']) {
+            array_push($out, ...self::recoveries($s, $open, $meOpen, $now));
+        }
+
         return $out;
+    }
+
+    /**
+     * Haperen: het apparaat ging opnieuw offline voordat de herstelmail uit was.
+     * De oude storing stil afsluiten en de nieuwe als al gemeld markeren.
+     */
+    private static function carryOver(array $a, string $since, string $now): void
+    {
+        $db = db_connect();
+        $db->table('network_alerts')->where('id', $a['id'])->update([
+            'recovered_at' => $a['recovered_at'] ?? $now, 'recovery_notified_at' => $a['recovery_notified_at'] ?? $now, 'recovery_client_at' => $a['recovery_client_at'] ?? $now,
+        ]);
+        if ($since === '') {
+            return;
+        }
+        $db->table('network_alerts')->ignore(true)->insert([
+            'customer_id'        => $a['customer_id'],
+            'network_device_id'  => $a['network_device_id'],
+            'offline_since'      => $since,
+            'notified_at'        => $a['notified_at'],
+            'recipients'         => $a['recipients'],
+            'mode'               => $a['mode'],
+            'client_notified_at' => $a['client_notified_at'],
+            'client_recipients'  => $a['client_recipients'],
+        ]);
+    }
+
+    /**
+     * Herstelmails: per klant verzameld. Pas als het laatste herstel even geleden is
+     * (wat nog meer terugkomt gaat mee). Alleen naar wie de storingsmail kreeg; de
+     * klant binnen de verzendtijden.
+     *
+     * @return list<string>
+     */
+    private static function recoveries(array $s, bool $clientOpen, bool $meOpen, string $now): array
+    {
+        $db   = db_connect();
+        $rows = $db->table('network_alerts')->where('recovered_at IS NOT NULL', null, false)
+            ->groupStart()
+                ->groupStart()->where('recovery_notified_at', null)->where('recipients IS NOT NULL', null, false)->groupEnd()
+                ->orGroupStart()->where('recovery_client_at', null)->where('client_recipients IS NOT NULL', null, false)->groupEnd()
+            ->groupEnd()->get()->getResultArray();
+        $by = [];
+        foreach ($rows as $r) {
+            $by[(int) $r['customer_id']][] = $r;
+        }
+        $settled = date('Y-m-d H:i:s', time() - $s['recoverDelay'] * 60);
+        $out     = [];
+
+        foreach ($by as $customerId => $alerts) {
+            if (max(array_column($alerts, 'recovered_at')) > $settled) {
+                continue; // er komt misschien nog meer terug
+            }
+            $customer = model(CustomerModel::class)->find($customerId);
+            $ids      = array_column($alerts, 'id');
+            if ($customer === null) {
+                $db->table('network_alerts')->whereIn('id', $ids)->update(['recovery_notified_at' => $now, 'recovery_client_at' => $now]);
+                continue;
+            }
+            $devices = self::recoveredDevices($customerId, $alerts);
+            $still   = self::offlineByCustomer($customerId)[$customerId] ?? [];
+
+            // Klant: alleen wat de klant als storing kreeg
+            $forClient = array_values(array_filter($alerts, static fn ($a) => $a['recovery_client_at'] === null && $a['client_recipients'] !== null));
+            if ($forClient !== []) {
+                $to = self::customerTo($customer, $s);
+                if ($to === []) {
+                    $db->table('network_alerts')->whereIn('id', array_column($forClient, 'id'))->update(['recovery_client_at' => $now]); // staat uit
+                } elseif ($clientOpen) {
+                    $list = self::only($devices, array_column($forClient, 'network_device_id'));
+                    try {
+                        self::sendRecovery($customer, $list, array_values(array_filter($still, static fn ($d) => $d['client_alerted'])), $to, $s, ['audience' => 'client']);
+                        $db->table('network_alerts')->whereIn('id', array_column($forClient, 'id'))->update(['recovery_client_at' => $now]);
+                        $out[] = $customer['name'] . ': klant gemaild dat ' . (count($list) === 1 ? '1 apparaat weer werkt' : count($list) . ' apparaten weer werken');
+                    } catch (Throwable $e) {
+                        $out[] = $customer['name'] . ': herstelmail klant mislukt: ' . $e->getMessage();
+                        log_message('error', 'Herstelmail klant ' . $customer['name'] . ': ' . $e->getMessage());
+                    }
+                }
+            }
+
+            // Jij
+            $forMe = array_values(array_filter($alerts, static fn ($a) => $a['recovery_notified_at'] === null && $a['recipients'] !== null));
+            if ($forMe !== [] && $meOpen) {
+                $to = self::internal($s);
+                if ($to === []) {
+                    continue;
+                }
+                $list = self::only($devices, array_column($forMe, 'network_device_id'));
+                try {
+                    self::sendRecovery($customer, $list, array_values(array_filter($still, static fn ($d) => $d['alerted'])), $to, $s, ['audience' => 'internal', 'internal' => true]);
+                    $db->table('network_alerts')->whereIn('id', array_column($forMe, 'id'))->update(['recovery_notified_at' => $now]);
+                    $out[] = $customer['name'] . ': ' . count($list) . ' weer online, gemeld aan ' . implode(', ', $to);
+                } catch (Throwable $e) {
+                    $out[] = $customer['name'] . ': herstelmail mislukt: ' . $e->getMessage();
+                    log_message('error', 'Herstelmail ' . $customer['name'] . ': ' . $e->getMessage());
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return list<array> */
+    private static function only(array $devices, array $ids): array
+    {
+        $ids = array_flip(array_map('intval', $ids));
+
+        return array_values(array_filter($devices, static fn ($d) => isset($ids[(int) $d['id']])));
+    }
+
+    /**
+     * Teruggekomen apparaten met naam, type en plek in de topologie, plus van
+     * wanneer tot wanneer ze weg waren.
+     *
+     * @return list<array>
+     */
+    private static function recoveredDevices(int $customerId, array $alerts): array
+    {
+        $per = [];
+        foreach ($alerts as $a) {
+            $id = (int) $a['network_device_id'];
+            // Eén regel per apparaat: van het eerste wegvallen tot het laatste herstel
+            $per[$id]['from'] = min($per[$id]['from'] ?? $a['offline_since'], $a['offline_since']);
+            $per[$id]['to']   = max($per[$id]['to'] ?? $a['recovered_at'], $a['recovered_at']);
+        }
+        $rows = model(NetworkDeviceModel::class)->withContext()->whereIn('network_devices.id', array_keys($per) ?: [0])->findAll();
+        $list = [];
+        foreach (self::sortByTopology($rows) as $d) {
+            $d['offline_since'] = $per[(int) $d['id']]['from'] ?? $d['offline_since'];
+            $d['recovered_at']  = $per[(int) $d['id']]['to'] ?? null;
+            $d['topo']['cause'] = null; // bij herstel niet relevant
+            $list[] = $d;
+        }
+
+        return $list;
+    }
+
+    /** Herstelmail opbouwen (ook voor het voorbeeld) */
+    public static function buildRecovery(array $customer, array $back, array $still, array $s, bool $preview = false, array $opt = []): array
+    {
+        $n       = count($back);
+        $subject = $still === []
+            ? 'Opgelost: alles weer bereikbaar bij ' . $customer['name']
+            : ($n === 1 ? '1 apparaat' : $n . ' apparaten') . ' weer bereikbaar bij ' . $customer['name'];
+        if (! empty($opt['internal'])) {
+            $subject = 'Weer online: ' . $customer['name'] . ' (' . ($n === 1 ? '1 apparaat' : $n . ' apparaten') . ($still !== [] ? ', ' . count($still) . ' nog offline' : '') . ')';
+        }
+        $html = view('emails/recovered', [
+            'customer' => $customer,
+            'back'     => $back,
+            'still'    => $still,
+            'settings' => $s,
+            'logo'     => $preview ? base_url('img/logo.png') : 'cid:__LOGO__',
+            'internal' => (bool) ($opt['internal'] ?? false),
+            'test'     => (bool) ($opt['test'] ?? $preview),
+        ]);
+
+        return ['subject' => $subject, 'html' => $html];
+    }
+
+    private static function sendRecovery(array $customer, array $back, array $still, array $to, array $s, array $opt = []): void
+    {
+        if ($back === []) {
+            return;
+        }
+        $mail  = self::buildRecovery($customer, $back, $still, $s, false, $opt);
+        $html  = $mail['html'];
+        $files = [];
+        $logo  = FCPATH . 'img/logo.png';
+        if (is_file($logo)) {
+            $files[] = ['name' => 'logo.png', 'content' => (string) file_get_contents($logo), 'type' => 'image/png', 'inline' => true, 'cid' => 'logo@bongersonline'];
+            $html    = str_replace('cid:__LOGO__', 'cid:logo@bongersonline', $html);
+        }
+        $text = 'Beste ' . ($customer['contact_name'] ?: $customer['name']) . ", deze apparaten zijn weer bereikbaar:\n\n"
+            . implode("\n", array_map(static fn ($d) => '- ' . $d['display_name'] . ' (offline ' . self::span($d['offline_since'], $d['recovered_at']) . ')', $back))
+            . ($still !== [] ? "\n\nNog niet bereikbaar:\n" . implode("\n", array_map(static fn ($d) => '- ' . $d['display_name'], $still)) : '')
+            . "\n\nGroet, bongersonline";
+        Mailer::send($to, (($opt['test'] ?? false) ? '[TEST] ' : '') . $mail['subject'], $html, ['text' => $text, 'replyTo' => $s['replyTo'], 'attachments' => $files]);
+    }
+
+    /** "14:02 tot 15:10 (1 u 8 min)" */
+    public static function span(?string $from, ?string $to): string
+    {
+        if (! $from || ! $to) {
+            return '';
+        }
+        $a   = strtotime($from);
+        $b   = strtotime($to);
+        $fmt = static fn (int $t) => date('Y-m-d', $t) === date('Y-m-d') ? date('H:i', $t) : date('d-m H:i', $t);
+        $min = max(1, (int) round(($b - $a) / 60));
+        $dur = $min >= 60 ? intdiv($min, 60) . ' u' . ($min % 60 ? ' ' . ($min % 60) . ' min' : '') : $min . ' min';
+
+        return $fmt($a) . ' tot ' . (date('Y-m-d', $a) === date('Y-m-d', $b) ? date('H:i', $b) : $fmt($b)) . ' (' . $dur . ')';
     }
 
     /** Storing vastleggen of bijwerken (één regel per apparaat per storing) */
