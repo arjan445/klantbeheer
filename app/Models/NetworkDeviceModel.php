@@ -10,7 +10,7 @@ class NetworkDeviceModel extends Model
     protected $returnType    = 'array';
     protected $useTimestamps = true;
     protected $allowedFields = ['platform', 'external_id', 'network_site_id', 'device_id', 'name', 'model', 'kind', 'mac', 'serial', 'ip', 'firmware',
-        'status', 'raw_status', 'monitor', 'ignored', 'last_seen_at', 'offline_since', 'synced_at', 'gone'];
+        'status', 'raw_status', 'monitor', 'ignored', 'last_seen_at', 'offline_since', 'synced_at', 'gone', 'signal', 'radio', 'signal_at'];
 
     /**
      * Met de netwerksite, de klantlocatie en de klant erbij. Klant en locatie komen

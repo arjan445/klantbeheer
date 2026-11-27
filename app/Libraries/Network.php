@@ -505,6 +505,11 @@ class Network
                 'synced_at'       => $now,
                 'gone'            => 0,
             ];
+            if (array_key_exists('signal', $d)) { // UISP: bij elke synchronisatie
+                $row['signal']    = $d['signal'];
+                $row['radio']     = $d['radio'] ?? null;
+                $row['signal_at'] = $d['signal'] !== null ? $now : null;
+            }
             $label = 'apparaat ' . ($row['name'] ?? $row['mac'] ?? $ext);
             $ok    = $prev
                 ? $write(static fn () => $devM->update($prev['id'], $row), $label)

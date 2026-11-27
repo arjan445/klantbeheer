@@ -96,10 +96,38 @@ class Uisp extends Connector
                 'last_seen_at'     => self::toDateTime($over['lastSeen'] ?? null) ?? ($status === 'online' ? date('Y-m-d H:i:s') : null),
                 // Topologie: een station hangt draadloos aan zijn AP
                 'uplink'           => self::uplink($d),
-            ];
+            ] + self::radio($d);
         }
 
         return ['sites' => $sites, 'devices' => $devices, 'notes' => []];
+    }
+
+    /**
+     * Signaal van een draadloos station (of PTP-zijde): dBm en korte radio-info.
+     * Alleen voor apparaten die draadloos aan een AP hangen; anders leeg.
+     *
+     * @return array{signal:?int, radio:?string}
+     */
+    public static function radio(array $d): array
+    {
+        $o      = is_array($d['overview'] ?? null) ? $d['overview'] : [];
+        // Alleen actuele waarden: een losgevallen station geeft verouderde cijfers
+        $isSta  = ! empty($d['attributes']['apDevice']['id'] ?? null) && strtolower((string) ($o['status'] ?? '')) === 'active';
+        $signal = is_numeric($o['signal'] ?? null) ? (int) round((float) $o['signal']) : null;
+        if (! $isSta || $signal === null || $signal >= 0 || $signal < -110) {
+            return ['signal' => null, 'radio' => null];
+        }
+        $mbit  = static fn ($bps) => is_numeric($bps) && $bps > 0 ? (int) round($bps / 1e6) : null;
+        $down  = $mbit($o['downlinkCapacity'] ?? null);
+        $up    = $mbit($o['uplinkCapacity'] ?? null);
+        $freq  = is_numeric($o['frequency'] ?? null) ? (float) $o['frequency'] : null; // MHz
+        $parts = array_filter([
+            $freq ? rtrim(rtrim(number_format($freq / 1000, 2, ',', ''), '0'), ',') . ' GHz' : null,
+            is_numeric($o['channelWidth'] ?? null) ? (int) $o['channelWidth'] . ' MHz' : null,
+            $down || $up ? '↓ ' . ($down ?? '?') . ' / ↑ ' . ($up ?? '?') . ' Mbit/s' : null,
+        ]);
+
+        return ['signal' => $signal, 'radio' => $parts ? mb_substr(implode(' · ', $parts), 0, 150) : null];
     }
 
     /** Bovenliggend apparaat volgens UISP (station -> AP), of null */

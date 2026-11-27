@@ -17,6 +17,8 @@ class Dashboard extends BaseController
             'todoCustomers' => \App\Controllers\Todos::customerOptions(),
             'customers' => model(CustomerModel::class)->where('active', 1)->countAllResults(),
             'devices'   => user_can('vault.view') ? model(DeviceModel::class)->countAllResults() : null,
+            'todoLate'  => model(\App\Models\TodoModel::class)->where('done', 0)->where('due_date <', date('Y-m-d'))->countAllResults(),
+            'todoToday' => model(\App\Models\TodoModel::class)->where('done', 0)->where('due_date', date('Y-m-d'))->countAllResults(),
         ];
 
         // Netwerk: offline klantapparaten bovenaan
