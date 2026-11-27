@@ -56,6 +56,8 @@ $routes->group('klanten', ['filter' => 'can:customers.view'], static function ($
 $routes->group('diensten', ['filter' => 'can:billing.view'], static function ($routes) {
     $routes->get('/', [Services::class, 'index']);
     $routes->match(['GET', 'POST'], 'nieuw', [Services::class, 'create'], ['filter' => 'can:billing.manage']);
+    $routes->get('vimexx', [\App\Controllers\VimexxPrices::class, 'index'], ['filter' => 'can:billing.manage']);
+    $routes->post('vimexx', [\App\Controllers\VimexxPrices::class, 'apply'], ['filter' => 'can:billing.manage']);
     $routes->match(['GET', 'POST'], '(:num)/bewerken', [Services::class, 'edit/$1'], ['filter' => 'can:billing.manage']);
     $routes->post('(:num)/verwijderen', [Services::class, 'delete/$1'], ['filter' => 'can:billing.manage']);
 });

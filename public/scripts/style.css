@@ -346,3 +346,8 @@ body:has(.scan-bar:not(.d-none)) { padding-bottom: 90px; }
 .svc-bar { position: relative; height: 8px; border-radius: 4px; background: #eef0f4; }
 .svc-bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: #b9c0e0; }
 .svc-bar .svc-margin { background: var(--kb-blue); }
+
+/* Diensten › Prijzen Vimexx */
+.vx-table td { vertical-align: middle; }
+.vx-table tr.vx-none td { color: #8a90a0; }
+.vx-table.vx-only tr.vx-none { display: none; }

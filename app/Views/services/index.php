@@ -4,7 +4,10 @@
         <div class="text-muted small">Wat je verkoopt, met standaardprijs. Per abonnement kun je de prijs nog aanpassen.</div>
     </div>
     <?php if (user_can('billing.manage')) : ?>
-        <a href="<?= site_url('diensten/nieuw') ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nieuwe dienst</a>
+        <div class="d-flex gap-2">
+            <a href="<?= site_url('diensten/vimexx') ?>" class="btn btn-outline-primary km-hide"><i class="bi bi-cloud-download"></i> Prijzen Vimexx</a>
+            <a href="<?= site_url('diensten/nieuw') ?>" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nieuwe dienst</a>
+        </div>
     <?php endif ?>
 </div>
 <div class="card"><div class="card-body">
